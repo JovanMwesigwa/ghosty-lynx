@@ -7860,3 +7860,4 @@ countries: nl be
 "Unable to create folder: {0}" = "Kan map niet maken: {0}"
 "Saved to Clipboard files: {0}" = "Opgeslagen in Klembordbestanden: {0}"
 "Clipboard files" = "Klembordbestanden"
+"Comp takes" = "Comp maken van deze takes"

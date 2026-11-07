@@ -7860,3 +7860,4 @@ countries: de at ch li lu
 "Unable to create folder: {0}" = "Ordner konnte nicht erstellt werden: {0}"
 "Saved to Clipboard files: {0}" = "In Zwischenablage-Dateien gespeichert: {0}"
 "Clipboard files" = "Zwischenablage-Dateien"
+"Comp takes" = "Comp aus diesen Takes erstellen"

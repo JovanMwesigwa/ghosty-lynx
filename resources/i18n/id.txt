@@ -7860,3 +7860,4 @@ countries: id
 "Unable to create folder: {0}" = "Tidak dapat membuat folder: {0}"
 "Saved to Clipboard files: {0}" = "Disimpan ke File papan klip: {0}"
 "Clipboard files" = "File papan klip"
+"Comp takes" = "Buat comp dari take ini"

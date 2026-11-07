@@ -7860,3 +7860,4 @@ countries: tw hk mo
 "Unable to create folder: {0}" = "無法建立資料夾:{0}"
 "Saved to Clipboard files: {0}" = "已儲存到剪貼簿檔案:{0}"
 "Clipboard files" = "剪貼簿檔案"
+"Comp takes" = "用這些錄音合成"

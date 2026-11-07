@@ -7860,3 +7860,4 @@ countries: pl
 "Unable to create folder: {0}" = "Nie można utworzyć folderu: {0}"
 "Saved to Clipboard files: {0}" = "Zapisano w Pliki schowka: {0}"
 "Clipboard files" = "Pliki schowka"
+"Comp takes" = "Utwórz comp z tych ujęć"

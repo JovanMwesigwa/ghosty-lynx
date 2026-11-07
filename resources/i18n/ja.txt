@@ -7860,3 +7860,4 @@ countries: jp
 "Unable to create folder: {0}" = "フォルダーを作成できません: {0}"
 "Saved to Clipboard files: {0}" = "クリップボードファイルに保存しました: {0}"
 "Clipboard files" = "クリップボードファイル"
+"Comp takes" = "これらのテイクでコンプを作成"

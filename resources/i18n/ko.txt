@@ -7860,3 +7860,4 @@ countries: kr
 "Unable to create folder: {0}" = "폴더를 만들 수 없습니다: {0}"
 "Saved to Clipboard files: {0}" = "클립보드 파일에 저장함: {0}"
 "Clipboard files" = "클립보드 파일"
+"Comp takes" = "이 테이크로 컴프 만들기"

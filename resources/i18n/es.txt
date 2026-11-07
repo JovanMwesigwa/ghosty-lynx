@@ -7860,3 +7860,4 @@ countries: es mx ar co cl pe ve
 "Unable to create folder: {0}" = "No se pudo crear la carpeta: {0}"
 "Saved to Clipboard files: {0}" = "Guardado en Archivos del portapapeles: {0}"
 "Clipboard files" = "Archivos del portapapeles"
+"Comp takes" = "Crear comp con estas tomas"
