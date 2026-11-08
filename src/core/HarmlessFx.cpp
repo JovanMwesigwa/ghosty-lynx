@@ -117,8 +117,8 @@ public:
         if (p.empty())
             return false;
         for (std::size_t i = 1; i < p.size(); ++i)
-            if (p[i].type != 0 && p[i].type != 7)
-                return false;
+            if (p[i].type != 0 && p[i].type != 1 && p[i].type != 2 && p[i].type != 7)
+                return false; // (round 173d3c: + double curve and hold, FL's "Destruction" and "Nawak" presets)
         return true;
     }
 
@@ -163,6 +163,19 @@ public:
                 else if (pt.q < 0.0f)
                     s = (std::exp (s * (double) pt.c) - 1.0) * (double) pt.b;
             }
+            else if (pt.type == 1) // double curve (FUN_007885d0): the single curve on each half, mirrored on the second
+            {
+                auto half = [&pt] (double x) {
+                    if (pt.q > 0.0f)
+                        return 1.0 - (std::exp ((1.0 - x) * (double) pt.c) - 1.0) * (double) pt.b;
+                    if (pt.q < 0.0f)
+                        return (std::exp (x * (double) pt.c) - 1.0) * (double) pt.b;
+                    return x;
+                };
+                s = s < 0.5 ? half (s * 2.0) * 0.5 : 1.0 - half ((1.0 - s) * 2.0) * 0.5;
+            }
+            else if (pt.type == 2) // hold: the previous point's level until the next point
+                s = 0.0;
             else // type 7
             {
                 const auto u = pt.sign > 0 ? 1.0 - s : s;
@@ -201,6 +214,7 @@ struct MaximusPreset
     };
     std::array<Band, 4> band {};
     bool valid = false;
+    bool midMode = false;   // "Master Mid mode" (+0x324, round 173d3c): the mid band's gain is applied to the full signal
     bool legacyFir = false; // "Linear-phase filters (legacy mode)": windowed-sinc FIR band split (FUN_0083c200)
     bool linearPhaseSplit = false; // the v14+ linear-phase band split option: not decoded, the normal crossover is used
     MaximusBuild build = MaximusBuild::shared;
@@ -232,8 +246,8 @@ Point makePoint (double dx, double y, float ten, int type, bool first)
                 pt.c = f32 (std::log (std::fabs ((double) q) + 1.0));
             }
         }
-        if ((pt.type == 0 || pt.type == 7) && pt.tension == 0.0f)
-            pt.sign = 2; // straight segment
+        if ((pt.type == 0 || pt.type == 1 || pt.type == 7) && pt.tension == 0.0f)
+            pt.sign = 2; // straight segment (FL: modes 0, 1, 7, 8, 9, 11, 12 without tension)
     }
     return pt;
 }
@@ -466,10 +480,9 @@ std::shared_ptr<const MaximusPreset> makeMaximusPreset (const std::vector<std::u
     m->oversampling = byteAt (0x1f4) | (byteAt (0x1f5) << 8) | (byteAt (0x1f6) << 16) | (byteAt (0x1f7) << 24);
     if (m->oversampling < 0 || m->oversampling > 1)
         return nullptr; // only ×1 and ×2 are used by the presets and the demo projects
-    // menu options read with the block: "Master Mid mode" (+0x324) is not decoded for rendering; the legacy
-    // linear-phase FIR crossover (+0x325) and solo (+0x317) of the editor's band (+0x308) are (REA_rodada40 §2.5)
-    if (byteAt (0x1fc) != 0)
-        return nullptr;
+    // menu options read with the block: "Master Mid mode" (+0x324, round 173d3c, FUN_00843a40), the legacy
+    // linear-phase FIR crossover (+0x325) and solo (+0x317) of the editor's band (+0x308) (REA_rodada40 §2.5)
+    m->midMode = byteAt (0x1fc) != 0;
     m->legacyFir = byteAt (0x1fd) != 0;
     const auto solo = byteAt (0x1ef) != 0;
     const auto soloBand = i32At (d, 0x1e0);
@@ -517,7 +530,9 @@ std::shared_ptr<const MaximusPreset> makeMaximusPreset (const std::vector<std::u
         // effective mode (FUN_008417e0): with solo on and another band selected, the master is at least
         // "compression off" and the other bands are muted
         B.mode = mode;
-        if (solo && soloBand != 3 && b != soloBand)
+        if (m->midMode && (b == 0 || b == 2))
+            B.mode = 2; // Master Mid mode (FUN_008417e0, mask 0x05): the low and high bands are muted, solo skipped
+        else if (solo && soloBand != 3 && b != soloBand)
             B.mode = std::max (B.mode, b == 3 ? 1 : 2);
         B.rms = q (19) != 0;
         const auto thr = q (11);
@@ -1247,7 +1262,9 @@ public:
             stages[1].push_back (stage (1, fH, sH));
         for (int i = 0; i <= sH; ++i)
             stages[2].push_back (stage (4, fH, sH));
-        inPlaceStages = std::min (sL + 1, (int) stages[1].size() - 1);
+        // (Master Mid mode: the mid band's high-pass stages leave the input alone, FUN_00843a40)
+        inPlaceStages = P.midMode ? 0 : std::min (sL + 1, (int) stages[1].size() - 1);
+        midMode = P.midMode;
         firOn = P.legacyFir;
         if (firOn)
         {
@@ -1396,7 +1413,15 @@ public:
                 }
             }
             auto& B = band[(std::size_t) b];
-            processBand (b, yl, yr, nb);
+            // Master Mid mode (FUN_00843a40): the mid band is detected on its own signal, but its delay, gain,
+            // saturation and mix act on the full signal X, which is what is summed and what the high band then splits
+            if (midMode && b == 1)
+            {
+                processBand (b, yl, yr, nb, XL, XR);
+                yl = XL, yr = XR;
+            }
+            else
+                processBand (b, yl, yr, nb);
             if (B.mode < 2)
             {
                 if (! haveSum && b == 2)
@@ -1440,7 +1465,8 @@ private:
         FrameDelay delay;
     };
 
-    void processBand (int b, float* xl, float* xr, int n) noexcept
+    // (al, ar: where the gain acts; null = the detected signal itself)
+    void processBand (int b, float* xl, float* xr, int n, float* al = nullptr, float* ar = nullptr) noexcept
     {
         auto& B = band[(std::size_t) b];
         const auto& S = pr->band[(std::size_t) b];
@@ -1489,6 +1515,8 @@ private:
             for (auto& s : B.att)
                 s.run (g, n);
         }
+        if (al != nullptr)
+            xl = al, xr = ar;
         B.delay.run (xl, xr, n);
         const auto keepDry = mixOn && b < 3;
         if (keepDry)
@@ -1551,7 +1579,7 @@ private:
     std::shared_ptr<const MaximusPreset> pr;
     double fs = 44100.0;
     int K = 1, first = 0, inPlaceStages = 0, tailLength = 0, counter = 0, reportedLatency = 0, firLatency = 0;
-    bool firOn = false;
+    bool firOn = false, midMode = false;
     std::array<Fir, 3> fir {};
     float mix = 1.0f;
     bool mixOn = false;

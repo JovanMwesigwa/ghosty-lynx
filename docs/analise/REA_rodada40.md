@@ -114,6 +114,7 @@ as in round 36. Versions below 3 (a piecewise layout) occur in no preset or demo
   - The FIRs add `(N − 1)/2` samples of delay, included in the reported latency.
 - **Master Mid mode** (byte 0x1FC) and the v ≥ 14 **linear-phase band split** (flags bit 0, which hands the split to
   Frequency Splitter's `engine_x64.dll`) are **not decoded**; LYNX rejects such states (§6).
+  *(Round 173d3c: Master Mid mode is now decoded, see `REA_rodada173d3c.md` §2.)*
 - **v ≥ 14 curve-scale flag** (bit 6): round 36 §2.1; now exercised by the demo states.
 
 ### 2.6 High band as the first band on **[DECOMP + EXEC]**
