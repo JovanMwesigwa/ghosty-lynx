@@ -10283,8 +10283,8 @@ TEST (harmless_rack)
         rms[4 + 4 * (7 + 13 * 3 + 12)] = 1; // RMS detector on the master (decoded in REA_rodada40)
         CHECK (lynx::hlfx::makeMaximusPreset (rms) != nullptr);
         auto masterMid = st;
-        masterMid[0x1fc] = 1; // "Master Mid mode": not decoded
-        CHECK (lynx::hlfx::makeMaximusPreset (masterMid) == nullptr);
+        masterMid[0x1fc] = 1; // "Master Mid mode": decoded in round 173d3c (REA_rodada173d3c §2)
+        CHECK (lynx::hlfx::makeMaximusPreset (masterMid) != nullptr);
     }
 }
 
