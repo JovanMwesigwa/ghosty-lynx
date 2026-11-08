@@ -62,6 +62,11 @@ constexpr float maxFaderGain = 1.9031f;
 // docs/analise/REA_rodada3.md §2.
 float channelGain (float volume) noexcept;
 
+// The channel volume at which a Playlist audio clip plays its file at unity, in FL and in LYNX: FL's default, 10000 of
+// 12800 (Instruments.cpp audioClipUnity). Channels made from a render (Render to audio, the FL Studio export's option A)
+// get it, so the render sounds like what it replaces (round 182b).
+inline constexpr float audioClipUnityVolume = 10000.0f / 12800.0f;
+
 // Which running instance a channel or mixer effect slot is (round 168s, issue #32): a number given when the channel /
 // slot is made, kept by every copy (snapshots, undo, moving it in its list) and never saved. The renderer keeps an
 // instrument / effect with its channel / slot when the list order changes (inserting a channel, moving an effect up),

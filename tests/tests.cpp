@@ -5913,6 +5913,52 @@ TEST (bounce_insert_song_and_apply)
     CHECK (s.playlist.back().kind == lynx::ClipKind::audio && s.playlist.back().length == 3840);
 }
 
+// Round 182b: "Render to audio" (applyBounce) must sound like the insert it replaces. A Playlist audio clip plays its file
+// at unity at FL's default channel volume (10000 of 12800); the bounce's channel was made at 100 %, +5.2 dB.
+TEST (s182b_bounce_plays_at_the_level_it_replaces)
+{
+    lynx::Song s = lynx::Song::makeDefault();
+    s.bpm = 120.0;
+    s.mode = lynx::PlayMode::song;
+    lynx::ChannelDef c;
+    c.instrument = lynx::InstrumentKind::audioClip;
+    c.samplePath = "dc";
+    c.volume = lynx::audioClipUnityVolume;
+    c.mixerTrack = 1;
+    s.channels = { c };
+    s.patterns = { lynx::Pattern {} };
+    lynx::Clip clip;
+    clip.kind = lynx::ClipKind::audio;
+    clip.channel = 0;
+    clip.length = 4 * lynx::ppq;
+    s.playlist = { clip };
+
+    auto level = [] (const lynx::Song& song, float bounced) {
+        auto provider = [bounced] (const std::string& path) {
+            auto d = std::make_shared<lynx::SampleData>();
+            d->sampleRate = 48000.0;
+            d->left.assign (48000 * 3, path == "dc" ? 0.25f : bounced);
+            return std::shared_ptr<const lynx::SampleData> (d);
+        };
+        auto state = lynx::RackState::build (song, nullptr, 48000.0, provider);
+        lynx::RackRenderer r;
+        r.prepare (48000.0, 512);
+        std::vector<float> l (256), rr (256);
+        r.process (state.get(), true, 1.0 * lynx::ppq, 256, l.data(), rr.data());
+        r.process (state.get(), false, 1.0 * lynx::ppq + 256 * lynx::ticksPerSample (120.0, 48000.0), 256, l.data(), rr.data());
+        return l[128];
+    };
+    const auto before = level (s, 0.0f);
+    CHECK (std::abs (before) > 0.05f);
+    // the render of insert 1 is what it played: a file holding `before`
+    const auto created = lynx::applyBounce (s, 1, "bounce", 4 * lynx::ppq);
+    CHECK (created > 0 && s.channels.back().volume == lynx::audioClipUnityVolume);
+    const auto after = level (s, before);
+    CHECK (std::abs (20.0 * std::log10 (std::abs (after) / std::abs (before))) < 0.05);
+    if (std::abs (after) > 0.0f && std::abs (before) > 0.0f)
+        std::printf ("  bounce level vs the insert: %+.2f dB\n", 20.0 * std::log10 (std::abs (after) / std::abs (before)));
+}
+
 TEST (mixer_stereo_separation_phase_swap)
 {
     // FL's level matrix (REA_rodada2 §2.2, REA_rodada167j §1): outL = ll·inL + rl·inR, outR = rr·inR + lr·inL

@@ -1418,7 +1418,7 @@ int applyBounce (Song& song, int track, const std::string& samplePath, std::int6
     c.instrument = InstrumentKind::audioClip;
     c.samplePath = samplePath;
     c.mixerTrack = newTrack;
-    c.volume = 1.0f;
+    c.volume = audioClipUnityVolume; // the render plays at the level of the insert it replaces (round 182b; 1.0 was +5.2 dB)
     song.channels.push_back (c);
 
     int lane = 0;
