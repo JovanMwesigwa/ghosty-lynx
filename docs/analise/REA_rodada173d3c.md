@@ -4,8 +4,8 @@
 > (`Shared/SG_x64.dll`, sha256 `ad567e65e2aac8314d23f2322f4d17e1b5529a09f64c43d596189582f006f6ac`, the same file as
 > rounds 35, 36 and 40). No Image-Line code was copied. Data layouts and behaviours are described in our own words.
 > Addresses serve only to trace the evidence. Markers: **[DECOMP]** read in the decompiled or disassembled code,
-> **[DATA]** read in FL's factory preset files. Nothing here was checked by running the DLL (**no [EXEC]**): the
-> round-36/40 harness was not available. The resulting sound is **not verified against FL**.
+> **[DATA]** read in FL's factory preset files, **[RENDER]** FL's own render (`FL64.exe /R`) compared with LYNX's
+> (`LYNX.exe --render`) on the same project (§4). No EXEC harness was used.
 
 Why: 3 of FL's 41 Maximus factory presets still fell back to a generic effect after round 173d3b ("Fancy/Destruction",
 "Fancy/Nawak", "Fancy/Mid-triggered gate").
@@ -46,4 +46,24 @@ Why: 3 of FL's 41 Maximus factory presets still fell back to a generic effect af
   alone and applies the mid band's processing to it. The low and high bands are muted.
 - Tests: `tests/Maximus173d3cTests.inc` covers acceptance, hold silencing a quiet tone, a straight double curve
   matching a straight segment, Mid mode muting the low band, and FL's three presets (with the FL Data path).
-- Open: these renders have no comparison against the DLL. An EXEC run of the three presets would confirm the sound.
+
+## 4. Renders against FL [RENDER]
+
+Project: FL's own `Data/System/Render tests/Maximus.flp` (a 3x Osc into Maximus), with the Maximus state replaced by
+each preset's state (event 0xD5; the files are in `/mnt/e/lynx-work/audit173d3/maxr/`). FL rendered each project with
+`/R /Ewav` through round 180d's `flrender.sh` (no input, minimised launch; FL never took the foreground, no new
+input-wall drops). LYNX rendered it with `--render` from the cloud exe of `wip/audit173d3c` (run 42468972029).
+Compared over the first 0.5 s, where both renders play the same notes. After about 0.6 s both renders part ways for every
+project, the untouched one too: FL's render goes quiet while LYNX keeps playing its pattern. That is the project's
+timing, not Maximus. Mono mix, aligned on the lag of least residual:
+
+| Project | Lag (samples) | Residual vs FL | Worst 100 ms | RMS FL / LYNX | Envelope corr (20 ms) | Max 1/3-octave difference | FL preset vs FL original |
+|---|---|---|---|---|---|---|---|
+| original (v10 state, already supported) | 153 | −89.0 dB | −88.9 dB | −6.23 / −6.23 dB | 1.00000 | 0.002 dB | — |
+| Destruction (v2 state, double curve) | 88 | −89.3 dB | −89.2 dB | −4.60 / −4.60 dB | 1.00000 | 0.000 dB | +4.9 dB |
+| Nawak (hold segments) | 88 | −84.8 dB | −84.1 dB | −14.79 / −14.79 dB | 1.00000 | 0.001 dB | +1.6 dB |
+| Mid-triggered gate (Master Mid mode) | 352 | −86.1 dB | −86.1 dB | −12.84 / −12.84 dB | 1.00000 | 0.002 dB | +2.1 dB |
+
+The last column is the residual of FL's preset render against FL's render of the original project: each preset clearly
+changes the sound, and LYNX follows it to the same depth as the already-exact original (about −85 to −89 dB, likely the
+limit of FL's 16-bit file). Script: `maxr/cmp.py`; output: `maxr/result.txt`.
