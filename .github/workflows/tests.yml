@@ -63,7 +63,7 @@ jobs:
         if: always()
         run: ccache --show-stats || true
       - uses: actions/cache/save@v4
-        if: always() && github.ref == 'refs/heads/main'
+        if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/wip/speed185a')
         with:
           path: .ccache
           key: ccache-core-${{ matrix.os }}-${{ matrix.compiler }}-${{ github.sha }}
@@ -128,7 +128,7 @@ jobs:
           ccache --show-stats || true
 
       - uses: actions/cache/save@v4
-        if: always() && github.ref == 'refs/heads/main'
+        if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/wip/speed185a')
         with:
           path: .ccache
           key: ccache-app-${{ matrix.os }}-${{ github.sha }}
