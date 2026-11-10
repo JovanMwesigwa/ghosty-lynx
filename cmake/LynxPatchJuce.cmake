@@ -68,6 +68,14 @@
 #    dispatchGuarded) runs a message for a third-party plugin's own window inside an SEH guard: a fault in the plugin's
 #    window procedure (the reporter's synth editor, 0xC0000005 under DispatchMessageW) closes that editor instead of
 #    ending LYNX. Without a hook (tests, other programs) it is JUCE's DispatchMessage as before.
+# 16. macOS only, juce_audio_devices/native/juce_CoreAudio_mac.cpp (Ghosty LYNX: LYNX crashed at start, about one time in
+#    two, with a corrupted heap): CoreAudioInternal::reopen sets the device's buffer size, reads the device's details back
+#    (updateDetailsFromDevice, which allocates the channel buffers for the size the device REPORTS), then forces
+#    bufferSize to the size asked for, because "some devices fail to correctly report their new settings until some
+#    random time in the future". When the device still reported the old, smaller size, the buffers stayed that small
+#    and every audio callback wrote bufferSize samples into them, past their end (AddressSanitizer: heap-buffer-overflow
+#    in AudioProcessorPlayer's initialiseIoBuffers, a 2048-byte write). The forced size now gets buffers of that size,
+#    under the lock the audio callback takes.
 #
 # Used by CMake (lynx_patch_juce on the fetched JUCE) and by scripts/build-windows-zig.sh, which runs this file with
 # `cmake -DJUCE_DIR=<a copy of JUCE's juce_gui_basics module> -P cmake/LynxPatchJuce.cmake`.
@@ -172,6 +180,10 @@ function(lynx_patch_juce_file file)
         lynx_juce_fix("dispatch through the hook" "LYNX patch (issue #32): through the hook"
             "                TranslateMessage (&m);|NL|                DispatchMessage (&m);"
             "                TranslateMessage (&m);|NL||NL|                // LYNX patch (issue #32): through the hook when LYNX set one|NL|                if (lynxDispatchMessageHook != nullptr)|NL|                    lynxDispatchMessageHook (&m);|NL|                else|NL|                    DispatchMessage (&m);")
+    elseif(file MATCHES "juce_CoreAudio_mac.cpp$")
+        lynx_juce_fix("CoreAudio buffers of the forced size" "LYNX patch (Ghosty LYNX): buffers of the forced size"
+            "        updateDetailsFromDevice (ins, outs);|NL|        sampleRate = newSampleRate;|NL|        bufferSize = bufferSizeSamples;|NL|"
+            "        updateDetailsFromDevice (ins, outs);|NL||NL|        // LYNX patch (Ghosty LYNX): buffers of the forced size (the device may still report its old, smaller one: the|NL|        // channel buffers were allocated for that, and every callback wrote bufferSize samples past their end)|NL|        {|NL|            const ScopedLock sl (callbackLock);|NL|            sampleRate = newSampleRate;|NL|            bufferSize = bufferSizeSamples;|NL|            allocateTempBuffers();|NL|        }|NL|")
     elseif(file MATCHES "juce_VST3Common.h$")
         lynx_juce_fix("VST3 note ids" "LYNX patch (issue #70): each note its own noteId"
             "        toEventList (result, midiBuffer, &mapping, callback);|NL|    }"
@@ -198,6 +210,7 @@ function(lynx_patch_juce juce_dir)
     lynx_patch_juce_file("${juce_dir}/modules/juce_graphics/native/juce_CoreGraphicsContext_mac.mm")
     lynx_patch_juce_file("${juce_dir}/modules/juce_audio_processors/format_types/juce_VST3Common.h")
     lynx_patch_juce_file("${juce_dir}/modules/juce_events/native/juce_Messaging_windows.cpp")
+    lynx_patch_juce_file("${juce_dir}/modules/juce_audio_devices/native/juce_CoreAudio_mac.cpp")
 endfunction()
 
 # run as a script: cmake -DJUCE_DIR=<dir> -P cmake/LynxPatchJuce.cmake
