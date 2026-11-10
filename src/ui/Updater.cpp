@@ -612,8 +612,9 @@ void appImageUpdate()
     auto& c = controller();
     const auto current = appImageFile();
    #if JUCE_LINUX || JUCE_BSD
-    // AppImageUpdate's command-line tool: the zsync update information embedded by scripts/package-linux.sh
-    // (gh-releases-zsync|Ka1-S|LYNX-SHARE|latest-all|...) fetches only the changed blocks, then -O replaces the file
+    // AppImageUpdate's command-line tool: the zsync update information embedded by scripts/package-linux.sh, when a
+    // build has it (this one doesn't: it updates from releasesUrl like the other builds), fetches only the changed
+    // blocks, then -O replaces the file
     if (const auto tool = findInPath ("appimageupdatetool"); current != juce::File() && tool != juce::File() && overrideUrl().isEmpty())
     {
         c.progress = -1.0f;
@@ -1175,7 +1176,7 @@ public:
         addAndMakeVisible (viewport);
 
         page = releasePage (r);
-        githubButton.setButtonText (tr ("Open on GitHub"));
+        githubButton.setButtonText (tr ("Open the download page"));
         githubButton.onClick = [this] { juce::URL (page).launchInDefaultBrowser(); };
         closeButton.setButtonText (tr ("Close"));
         closeButton.onClick = [this] {

@@ -1534,7 +1534,7 @@ countries: br
 "Low-latency drivers. LYNX ASIO, FL Studio ASIO and ASIO4ALL work with any device; a manufacturer's ASIO driver works with its own device." = "Drivers de baixa latência. LYNX ASIO, FL Studio ASIO e ASIO4ALL funcionam com qualquer dispositivo; o driver ASIO de um fabricante funciona com o próprio dispositivo."
 "LYNX ASIO (built in)" = "LYNX ASIO (embutido)"
 "LYNX SHARE's own ASIO driver, with any device: playback and recording (microphone) at low latency. \"Driver settings...\" chooses shared or exclusive mode, the output and input devices and shows the latency. For other programs, run \"Register LYNX ASIO\" in LYNX SHARE's folder once." = "O driver ASIO do próprio LYNX SHARE, com qualquer dispositivo: reprodução e gravação (microfone) com baixa latência. \"Configurações do driver...\" escolhe o modo compartilhado ou exclusivo, os dispositivos de saída e entrada e mostra a latência. Para outros programas, execute \"Register LYNX ASIO\" na pasta do LYNX SHARE uma vez."
-"LYNX SHARE's own ASIO driver, with any device: playback and recording (microphone) at low latency. \"Driver settings...\" chooses shared or exclusive mode, the output and input devices and shows the latency. To use it in other programs, install LYNX SHARE from lynx-share.com (the installer registers it)." = "O driver ASIO do próprio LYNX SHARE, com qualquer dispositivo: reprodução e gravação (microfone) com baixa latência. \"Configurações do driver...\" escolhe o modo compartilhado ou exclusivo, os dispositivos de saída e entrada e mostra a latência. Para usá-lo em outros programas, instale o LYNX SHARE pelo lynx-share.com (o instalador o registra)."
+"LYNX SHARE's own ASIO driver, with any device: playback and recording (microphone) at low latency. \"Driver settings...\" chooses shared or exclusive mode, the output and input devices and shows the latency. To use it in other programs, install LYNX SHARE from officialghosty.app (the installer registers it)." = "O driver ASIO do próprio LYNX SHARE, com qualquer dispositivo: reprodução e gravação (microfone) com baixa latência. \"Configurações do driver...\" escolhe o modo compartilhado ou exclusivo, os dispositivos de saída e entrada e mostra a latência. Para usá-lo em outros programas, instale o LYNX SHARE pelo officialghosty.app (o instalador o registra)."
 "Smaller buffers answer faster when you play; larger ones give the CPU more room (fewer clicks)." = "Buffers menores respondem mais rápido quando você toca; maiores dão mais folga à CPU (menos estalos)."
 "With recording on, the sound card input becomes a Playlist clip (the Input device above)." = "Com a gravação ligada, a entrada da placa de som vira um clipe na Playlist (o dispositivo de entrada acima)."
 "{0} samples ({1} ms)" = "{0} amostras ({1} ms)"
@@ -4644,12 +4644,13 @@ countries: br
 "LYNX SHARE was updated to {0}" = "O LYNX SHARE foi atualizado para a versão {0}"
 "This release has no notes." = "Esta versão não tem notas."
 "Open on GitHub" = "Abrir no GitHub"
+"Open the download page" = "Abrir a página de download"
 "What's new in LYNX SHARE {0}" = "Novidades do LYNX SHARE {0}"
 "Crash reports" = "Relatórios de falha"
 "Ask after a crash or freeze" = "Perguntar depois de uma falha ou travamento"
 "Always send" = "Sempre enviar"
 "Never send" = "Nunca enviar"
-"A report holds LYNX SHARE's version, your system and audio device, the crash or freeze file and the last steps, without your name, file names or projects. It goes to lynx-share.com only with your consent (Help > Report a problem... sends one by hand)." = "Um relatório contém a versão do LYNX SHARE, seu sistema e dispositivo de áudio, o arquivo da falha ou do travamento e os últimos passos, sem seu nome, nomes de arquivos ou projetos. Ele vai para lynx-share.com só com o seu consentimento (Ajuda > Relatar um problema... envia um manualmente)."
+"A report holds LYNX SHARE's version, your system and audio device, the crash or freeze file and the last steps, without your name, file names or projects. It goes to officialghosty.app only with your consent (Help > Report a problem... sends one by hand)." = "Um relatório contém a versão do LYNX SHARE, seu sistema e dispositivo de áudio, o arquivo da falha ou do travamento e os últimos passos, sem seu nome, nomes de arquivos ou projetos. Ele vai para officialghosty.app só com o seu consentimento (Ajuda > Relatar um problema... envia um manualmente)."
 
 # Linux audio: native PipeWire driver and real-time priority (round 161)
 "PipeWire (native)" = "PipeWire (nativo)"

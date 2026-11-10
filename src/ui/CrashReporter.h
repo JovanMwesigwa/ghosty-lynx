@@ -6,7 +6,7 @@
 //   as Settings › General › "Crash reports" says (default: ask);
 // - Help › "Report a problem…" sends a manual report (a description, an optional e-mail, the newest crash / freeze
 //   files and this session's steps);
-// - reports go by HTTPS POST (gzip JSON) to lynx-share.com/api/crash.php on a background thread; a report that could
+// - reports go by HTTPS POST (gzip JSON) to api.officialghosty.app/api/crash (Ghosty's server) on a background thread; a report that could
 //   not be sent (offline) is tried once more at the next start, then dropped. Sent ids are listed in
 //   %APPDATA%\LYNX\crash-reports\sent.log (to ask for a report's deletion).
 
@@ -54,7 +54,7 @@ void retryPending();
 void shutdown();
 // Synchronous upload, for `LYNX.exe --send-test-report` (returns "" on success, else the error)
 juce::String sendNow (const juce::String& json);
-juce::String endpoint(); // https://lynx-share.com/api/crash.php (LYNX_CRASH_ENDPOINT overrides, for tests)
+juce::String endpoint(); // https://api.officialghosty.app/api/crash (LYNX_CRASH_ENDPOINT overrides, for tests)
 
 // Keeps the session file's "info.audio" line up to date with the open audio device.
 void watchAudioDevice (juce::AudioDeviceManager& devices);

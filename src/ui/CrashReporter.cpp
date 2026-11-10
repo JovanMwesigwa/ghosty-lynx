@@ -327,7 +327,7 @@ juce::String githubUrl (const cr::ReportInput& in)
 juce::String endpoint()
 {
     const auto custom = juce::SystemStats::getEnvironmentVariable ("LYNX_CRASH_ENDPOINT", {});
-    return custom.isNotEmpty() ? custom : juce::String ("https://lynx-share.com/api/crash.php");
+    return custom.isNotEmpty() ? custom : juce::String ("https://api.officialghosty.app/api/crash");
 }
 
 namespace

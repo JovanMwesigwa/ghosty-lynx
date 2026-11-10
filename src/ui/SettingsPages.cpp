@@ -266,7 +266,7 @@ public:
         crashBox.setSelectedId (juce::jlimit (0, 2, options.crashReports) + 1, juce::dontSendNotification);
         crashBox.onChange = [this] { change ([&] { options.crashReports = crashBox.getSelectedId() - 1; }); };
         styleNote (crashNote, tr ("A report holds LYNX SHARE's version, your system and audio device, the crash or freeze file and the last steps, without "
-                                  "your name, file names or projects. It goes to lynx-share.com only with your consent (Help > Report a problem... "
+                                  "your name, file names or projects. It goes to officialghosty.app only with your consent (Help > Report a problem... "
                                   "sends one by hand)."));
 
         // round 166b: the update check (ui/Updater.h); the Store build has none (the Store updates it)
@@ -396,7 +396,7 @@ private:
         languageNote.setColour (juce::Label::textColourId, noFont ? theme::colour::accent : theme::colour::textDisabled);
         translationLink.setButtonText (tr ("New translation — suggestions welcome"));
         translationLink.setTooltip (tr ("Opens a GitHub issue to suggest a better translation"));
-        translationLink.setURL (juce::URL ("https://github.com/Ka1-S/LYNX-SHARE/issues/new")
+        translationLink.setURL (juce::URL ("https://github.com/JovanMwesigwa/ghosty-lynx/issues/new")
                                     .withParameter ("title", "Translation (" + id + "): ")
                                     .withParameter ("labels", "translation"));
     }
@@ -955,7 +955,7 @@ private:
             case prefs::DriverKind::lynxAsio:
                 if (platform::runningPackaged()) // the Store build: the package folder moves with every update
                     return tr ("LYNX SHARE's own ASIO driver, with any device: playback and recording (microphone) at low latency. \"Driver settings...\" chooses shared or exclusive mode, the output and input devices and shows the latency. "
-                               "To use it in other programs, install LYNX SHARE from lynx-share.com (the installer registers it).");
+                               "To use it in other programs, install LYNX SHARE from officialghosty.app (the installer registers it).");
                 return tr ("LYNX SHARE's own ASIO driver, with any device: playback and recording (microphone) at low latency. \"Driver settings...\" chooses shared or exclusive mode, the output and input devices and shows the latency. "
                            "For other programs, run \"Register LYNX ASIO\" in LYNX SHARE's folder once.");
             case prefs::DriverKind::coreAudio:

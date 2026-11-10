@@ -1,7 +1,7 @@
 #pragma once
 
 // Crash / freeze reports (round 159). After LYNX closed unexpectedly (a crash, a freeze the user ended, a fail-fast),
-// the next start can send one report to lynx-share.com — only with the user's consent (Settings › General: Ask /
+// the next start can send one report to Ghosty's server (api.officialghosty.app) — only with the user's consent (Settings › General: Ask /
 // Always send / Never) — or open GitHub's bug form prefilled. This part is the platform-independent logic: consent,
 // anonymising, the report JSON (schema 1, website/api/crash.php checks it) and the GitHub URL. Collecting the system
 // facts, the dialog and the upload are in ui/CrashReporter.cpp.
@@ -132,7 +132,7 @@ struct IssueFields
 {
     std::string title, version, os, osDetails, audio, kind, steps, expected, plugins, logs;
 };
-constexpr const char* issueFormBase = "https://github.com/Ka1-S/LYNX-SHARE/issues/new";
+constexpr const char* issueFormBase = "https://github.com/JovanMwesigwa/ghosty-lynx/issues/new";
 constexpr std::size_t defaultMaxUrl = 8000;
 
 // The new-issue URL with the form prefilled; at most `maxLength` bytes: the longest fields (logs, steps, plugins)

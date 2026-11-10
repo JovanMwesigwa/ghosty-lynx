@@ -1,7 +1,8 @@
 #pragma once
 
 // In-app update check (round 166b), the logic without JUCE (tested in isolation; the app side is ui/Updater.h):
-// - the GitHub releases list of Ka1-S/LYNX-SHARE (JSON) parsed into releases, drafts skipped, prereleases included;
+// - the release list (GitHub's JSON format) of this build's own site, officialghosty.app/files/releases.json (written by
+//   the Ghosty server's `npm run release:publish`), parsed into releases, drafts skipped, prereleases included;
 // - semantic-version comparison of a release tag ("v0.1.21-alpha") with the running version (CMake's "0.1.20");
 // - the build flavour LYNX runs as (installer, portable zip, Store, macOS, AppImage, tar.gz), the update method and
 //   the release asset that flavour uses;
@@ -149,8 +150,8 @@ bool shouldShow (const Release& release, const Settings& settings, bool manual);
 constexpr std::int64_t cacheLifetimeMs = 3LL * 60 * 60 * 1000;
 bool cacheFresh (std::int64_t lastCheckMs, std::int64_t nowMs);
 
-// The GitHub API address of the release list (prereleases included; drafts are only listed for the repository's
-// own token, and dropped anyway).
-constexpr const char* releasesUrl = "https://api.github.com/repos/Ka1-S/LYNX-SHARE/releases?per_page=10";
-constexpr const char* releasesPage = "https://github.com/Ka1-S/LYNX-SHARE/releases";
+// The release list (GitHub's API format, its files on officialghosty.app) and the page that shows the releases. These are
+// this build's own: the original LYNX SHARE's releases would replace this modified version (and Ghosty with it).
+constexpr const char* releasesUrl = "https://officialghosty.app/files/releases.json";
+constexpr const char* releasesPage = "https://officialghosty.app/download";
 } // namespace lynx::update

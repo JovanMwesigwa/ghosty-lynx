@@ -1287,7 +1287,7 @@ public:
         {
             // LYNX.exe --send-test-report out.txt [--dry]: builds a crash report marked "test" from the newest crash /
             // hang file and this computer's facts, writes its JSON to out.txt.json and (without --dry) sends it to
-            // lynx-share.com (LYNX_CRASH_ENDPOINT overrides); out.txt gets "id=…" and "result=OK" or the error (round 159)
+            // api.officialghosty.app/api/crash (LYNX_CRASH_ENDPOINT overrides); out.txt gets "id=…" and "result=OK" or the error (round 159)
             const auto i = args.indexOf ("--send-test-report");
             const juce::File out (args[i + 1].unquoted());
             lynx::crashreporter::Session session;
@@ -9299,7 +9299,7 @@ private:
             {
                 // the Settings pages, with credits like a project imported from FL would carry
                 offline.editSong ([] (lynx::Song& s) {
-                    s.info = { "Night Drive", "LYNX SHARE demo", "Synthwave", "https://lynx-share.com",
+                    s.info = { "Night Drive", "LYNX SHARE demo", "Synthwave", "https://officialghosty.app",
                                "Made with LYNX SHARE.\nDrums and bass from the Channel Rack, pads from the Browser.", false };
                 }, false);
                 saveWindow (lynx::makeSettingsPanel (offline, lynx::SettingsPage::project), "-settings-project.png");

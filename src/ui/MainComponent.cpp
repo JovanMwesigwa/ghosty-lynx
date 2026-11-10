@@ -5973,7 +5973,7 @@ juce::PopupMenu MainComponent::getMenuForIndex (int barIndex, const juce::String
                 showImportReport();
         });
         menu.addItem (tr ("Built-in plugins (online list)..."), [] {
-            juce::URL ("https://github.com/Ka1-S/LYNX-SHARE/blob/main/docs/PLUGINS.md").launchInDefaultBrowser();
+            juce::URL ("https://github.com/JovanMwesigwa/ghosty-lynx/blob/ghosty/docs/PLUGINS.md").launchInDefaultBrowser();
         });
         menu.addItem (tr ("Report a problem..."), [this] { crashreporter::showManualReport (&engine.getDeviceManager()); });
         if (updater::offered()) // (not in the Store build: the Store updates it)
