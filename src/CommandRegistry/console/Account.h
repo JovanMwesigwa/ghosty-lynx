@@ -37,6 +37,7 @@ public:
     const juce::String& email() const noexcept { return userEmail; }
     const juce::String& plan() const noexcept { return userPlan; }          // "free" | "launch"
     bool isPaid() const noexcept { return userPlan.isNotEmpty() && userPlan != "free"; }
+    bool planKnown() const noexcept { return userPlan.isNotEmpty(); } // (false: the server hasn't answered yet)
     const juce::String& billedEvery() const noexcept { return planInterval; } // "month" | "year" (on a paid plan)
 
     // what an upgrade can be, as the server offers it: { "month", "$50 / month" }, { "year", "$490 / year" }
@@ -79,6 +80,7 @@ public:
     // checks the plan again for a while after.
     void manageSubscription();
     void openUpgradePage(); // the plans compared, in the browser
+    void checkPlan();       // asks the server to check with the payment provider now (after paying), then updates the plan
 
     std::optional<juce::String> token() const; // the session token (for requests to the server)
 

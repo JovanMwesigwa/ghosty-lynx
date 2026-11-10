@@ -1,14 +1,16 @@
 #pragma once
 
-// SignInView: what the Console shows until you're signed in to a LYNX account (Account), in place of the chat.
+// SignInView: what the Ghosty panel shows until Ghosty can be used, in place of the chat. Ghosty needs a Ghosty
+// account (Account) and the Launch plan (its 7-day free trial included):
 //
-//                 (L)
-//          Welcome to LYNX
-//   Sign in or create an account to start.
-//      [ Create account ]  [ Sign in ]
+//   signed out           Welcome to Ghosty              [Create account] [Sign in]
+//   signing in           the code to approve in the browser, Open the page again / Cancel
+//   checking the plan    Checking your plan...          (Try again when the server doesn't answer)
+//   no plan              Start your 7-day free trial    [Monthly · $50 / month] [Yearly · $490 / year]
+//                        Compare plans · Sign out
+//   paying               Finish the checkout in your browser   [I've paid: check now] [Stop waiting]
 //
-// Both buttons start the browser sign-in (Account::signIn); while it waits, the view shows the code to approve, with
-// "Open the page again" and Cancel. Once signed in, the Console swaps it for the chat.
+// Once the plan is on, the panel swaps this for the chat by itself (Account follows the payment).
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -24,10 +26,16 @@ public:
     void resized() override;
 
 private:
+    enum class Screen { signIn, starting, waiting, checking, plan, paying };
+    static Screen screen();
+
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void refresh();
 
-    juce::TextButton create, signIn, openAgain, cancel;
-    juce::Rectangle<int> content; // (the centred column)
+    juce::TextButton create, signIn, openAgain, cancel;     // signing in
+    juce::TextButton retry;                                 // checking the plan
+    juce::TextButton monthly, yearly, compare, signOut;     // no plan
+    juce::TextButton checkNow, stopWaiting;                 // paying
+    juce::Rectangle<int> content;                           // (the centred column)
 };
 } // namespace lynx::commands

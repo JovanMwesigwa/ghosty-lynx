@@ -353,6 +353,27 @@ void Account::manageSubscription()
     watchBilling (false, 10 * 60); // (a switch or a cancel there: picked up while the page is open)
 }
 
+void Account::checkPlan()
+{
+    const auto t = token();
+    if (current != State::signedIn || ! t)
+        return;
+    lastError.clear();
+    sendChangeMessage();
+    juce::Thread::launch ([this, token = *t, stillAlive = alive] {
+        const auto reply = request ("/api/billing/sync", object ({}), token);
+        juce::MessageManager::callAsync ([this, reply, stillAlive] {
+            if (! stillAlive->load() || current != State::signedIn)
+                return;
+            if (reply.status == 200)
+                applyBilling (reply.json);
+            else
+                lastError = reply.status == 0 ? notAnswering : "The server answered " + juce::String (reply.status) + ".";
+            sendChangeMessage();
+        });
+    });
+}
+
 void Account::openUpgradePage()
 {
     if (current != State::signedIn)

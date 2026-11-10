@@ -31,7 +31,8 @@
 // The header (the workspace's title row, shared): no title; on the right, the plan: an orange "Start free trial" /
 // "Upgrade" on the free plan (monthly or yearly), or "Launch" on it (your account menu).
 //
-// Until you're signed in to a LYNX account (Account), the sign-in screen (SignInView) stands in for all of it; once
+// Until you're signed in to a Ghosty account (Account) and on the Launch plan (its free trial included), SignInView (the
+// sign-in, then the plan screen) stands in for all of it; once
 // signed in, your initials sit at the left of the composer's bottom row (click: who's signed in, Account page, Sign out).
 //
 // Commands go straight to the CommandRegistry on the UI thread (no HTTP).
@@ -118,6 +119,7 @@ private:
     bool showingSettings = false;
     std::unique_ptr<SignInView> signInView;
     bool signedIn = false;
+    bool ready = false; // signed in and on a plan (the 7-day trial included): Ghosty can be used
 
     class PlanButton; // the header's "Start free trial" / "Upgrade" (orange) or "Launch" (outlined)
     std::unique_ptr<PlanButton> planButton;

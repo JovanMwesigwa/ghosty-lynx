@@ -913,20 +913,21 @@ void ConsolePanel::accountChanged()
         showingSettings = false;
     }
     signedIn = now;
+    ready = signedIn && account.isPaid();
     composer->account.setPerson (account.name(), account.email());
     refreshPlanButton();
     updateGate();
 }
 
-// Signed out: only the sign-in screen. Signed in: the chat (or Settings, if that's open).
+// Not signed in, or no plan yet: only SignInView (sign-in / the plan screen). Ready: the chat (or Settings, if open).
 void ConsolePanel::updateGate()
 {
-    signInView->setVisible (! signedIn);
-    settingsView->setVisible (signedIn && showingSettings);
-    viewport.setVisible (signedIn && ! showingSettings);
-    composer->setVisible (signedIn && ! showingSettings);
+    signInView->setVisible (! ready);
+    settingsView->setVisible (ready && showingSettings);
+    viewport.setVisible (ready && ! showingSettings);
+    composer->setVisible (ready && ! showingSettings);
     resized();
-    if (signedIn && ! showingSettings && isShowing())
+    if (ready && ! showingSettings && isShowing())
         composer->input.grabKeyboardFocus();
 }
 
@@ -1168,6 +1169,8 @@ void ConsolePanel::agentEvent (const juce::var& e)
     }
     else if (type == "error")
     {
+        if (e["code"].toString() == "plan_required")
+            Account::get().checkPlan(); // (the plan ended: the panel shows the plan screen once that's confirmed)
         assistantMessage = -1;
         list->add (Kind::error, { { cross + " " + e["message"].toString(), colour::textPrimary, false } });
     }
@@ -1238,7 +1241,7 @@ void ConsolePanel::resized()
         planButton->setBounds (header.removeFromRight (w).withSizeKeepingCentre (w, 22));
     }
 
-    if (! signedIn)
+    if (! ready)
     {
         signInView->setBounds (body);
         return;
