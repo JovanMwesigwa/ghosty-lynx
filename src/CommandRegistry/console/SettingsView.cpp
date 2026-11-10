@@ -69,19 +69,78 @@ void styleButton (juce::TextButton& b, bool filled)
     b.setMouseCursor (juce::MouseCursor::PointingHandCursor);
 }
 
+// "You can find your Claude API key here": the line under a provider's description, "here" a blue link to the page of
+// the provider's site where its API keys are made.
+class KeyLink final : public juce::Component, public juce::SettableTooltipClient
+{
+public:
+    KeyLink (juce::String before, juce::String link, juce::URL page) : prefix (std::move (before)), linkText (std::move (link)), target (std::move (page))
+    {
+        setTooltip (target.toString (false));
+    }
+
+    void paint (juce::Graphics& g) override
+    {
+        using namespace theme;
+        const auto font = textFont (smallSize);
+        g.setFont (font);
+        g.setColour (colour::textSecondary);
+        const auto prefixWidth = juce::GlyphArrangement::getStringWidth (font, prefix);
+        g.drawText (prefix, getLocalBounds().toFloat().withWidth (prefixWidth + 1.0f), juce::Justification::centredLeft, false);
+        g.setColour (hovering ? colour::info.brighter (0.2f) : colour::info);
+        g.drawText (linkText, linkArea().toFloat(), juce::Justification::centredLeft, false);
+        if (hovering)
+        {
+            const auto r = linkArea().toFloat();
+            g.fillRect (r.getX(), r.getCentreY() + font.getAscent() / 2.0f + 1.0f, r.getWidth() - 1.0f, 1.0f);
+        }
+    }
+
+    void mouseMove (const juce::MouseEvent& e) override { setHover (linkArea().contains (e.getPosition())); }
+    void mouseExit (const juce::MouseEvent&) override { setHover (false); }
+    void mouseUp (const juce::MouseEvent& e) override
+    {
+        if (linkArea().contains (e.getPosition()))
+            target.launchInDefaultBrowser();
+    }
+
+private:
+    juce::Rectangle<int> linkArea() const
+    {
+        const auto font = textFont (smallSize);
+        const auto x = juce::roundToInt (juce::GlyphArrangement::getStringWidth (font, prefix));
+        return { x, 0, juce::roundToInt (juce::GlyphArrangement::getStringWidth (font, linkText)) + 2, getHeight() };
+    }
+
+    void setHover (bool on)
+    {
+        if (hovering == on)
+            return;
+        hovering = on;
+        setMouseCursor (on ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor);
+        repaint();
+    }
+
+    juce::String prefix, linkText;
+    juce::URL target;
+    bool hovering = false;
+};
+
 // One provider's card: its title and description, then rows (a label, maybe a second line, and a control on the right),
 // and a footer with Save.
 class ProviderCard final : public juce::Component, private juce::Timer
 {
 public:
-    explicit ProviderCard (AiProvider p) : provider (p)
+    explicit ProviderCard (AiProvider p)
+        : provider (p),
+          keyLink (p == AiProvider::anthropic ? "You can find your Claude API key " : "You can find your OpenAI API key ", "here",
+                   juce::URL (p == AiProvider::anthropic ? "https://platform.claude.com/settings/keys" : "https://platform.openai.com/api-keys"))
     {
+        addAndMakeVisible (keyLink);
         const auto name = AiSettings::providerName (p);
         title = name + " API Key";
-        description = p == AiProvider::anthropic
-                          ? "Your Anthropic key, to use Claude in Ghosty. When it's on, the Claude models in the picker use it."
-                          : p == AiProvider::openai ? "Your OpenAI key, to use OpenAI models in Ghosty."
-                                                    : "Your Google AI Studio key, to use Google models in Ghosty.";
+        description = p == AiProvider::anthropic ? "Your Anthropic key, to use Claude in Ghosty. When it's on, the Claude models in the picker use it."
+                                                 : "Your OpenAI key, to use OpenAI models in Ghosty.";
 
         // the key: saved on Save, Enter or leaving the field, then cleared (the field never shows it back)
         styleField (keyField, "Enter API key");
@@ -141,7 +200,7 @@ public:
         g.setColour (colour::textPrimary);
         g.setFont (textFont (titleSize, true));
         g.drawText (title, 2, 0, w, 16, juce::Justification::centredLeft);
-        descriptionLayout (w).draw (g, juce::Rectangle<float> (2.0f, 18.0f, (float) w - 4.0f, (float) headerHeight (w) - 18.0f));
+        descriptionLayout (w).draw (g, juce::Rectangle<float> (2.0f, 18.0f, (float) w - 4.0f, (float) descriptionHeight (w)));
 
         const auto card = cardArea().toFloat();
         g.setColour (colour::bg2);
@@ -200,6 +259,7 @@ public:
             }
         }
         save.setBounds (footerArea().reduced (14, 0).removeFromRight (64).withSizeKeepingCentre (64, 26));
+        keyLink.setBounds (2, 18 + descriptionHeight (getWidth()) + 3, getWidth() - 4, 18);
     }
 
 private:
@@ -288,7 +348,9 @@ private:
         return layout;
     }
 
-    int headerHeight (int width) const { return 18 + (int) std::ceil (descriptionLayout (width).getHeight()) + 8; }
+    int descriptionHeight (int width) const { return (int) std::ceil (descriptionLayout (width).getHeight()); }
+    // the title, the description, the "find your key here" line
+    int headerHeight (int width) const { return 18 + descriptionHeight (width) + 3 + 18 + 8; }
     juce::Rectangle<int> cardArea() const
     {
         return { 0, headerHeight (getWidth()), getWidth(), (int) rows.size() * rowHeight + footerHeight };
@@ -297,6 +359,7 @@ private:
     juce::Rectangle<int> footerArea() const { return cardArea().removeFromBottom (footerHeight); }
 
     AiProvider provider;
+    KeyLink keyLink;
     juce::String title, description, errorText;
     juce::TextEditor keyField, model;
     juce::TextButton removeKey, save;
@@ -492,7 +555,7 @@ public:
     {
         addAndMakeVisible (account);
         account.onHeightChanged = [this] { layoutFor (getWidth()); };
-        for (auto p : { AiProvider::anthropic, AiProvider::openai, AiProvider::google })
+        for (auto p : { AiProvider::anthropic, AiProvider::openai }) // (Google: not offered for now)
             addAndMakeVisible (cards.add (new ProviderCard (p)));
     }
 

@@ -195,6 +195,15 @@ public:
 
     void clear() { messages.clear(); }
 
+    // A message that ends with a link line (e.g. "Open Settings ›"): clicking it runs `action`.
+    int addWithAction (Kind kind, std::vector<Span> spans, const juce::String& actionText, std::function<void()> action)
+    {
+        const auto id = add (kind, std::move (spans));
+        messages.back().actionText = actionText;
+        messages.back().action = std::move (action);
+        return id;
+    }
+
     // A command row inside the fold `group` (a toolGroup message): shown only while the fold is open.
     int addToGroup (int group, Kind kind, std::vector<Span> spans)
     {
@@ -247,6 +256,12 @@ public:
                 buildIfNeeded (m, textW);
                 m.card = { rowX, y, rowW, m.layout.getHeight() };
                 m.text = { rowX + markerWidth, y, textW, m.layout.getHeight() };
+                if (m.actionText.isNotEmpty()) // (the link line under the text)
+                {
+                    const auto w = juce::GlyphArrangement::getStringWidth (textFont (theme::type::body, true), m.actionText) + 4.0f;
+                    m.actionArea = { m.text.getX(), m.text.getBottom() + 6.0f, w, 20.0f };
+                    m.card.setHeight (m.card.getHeight() + 26.0f);
+                }
             }
             y = m.card.getBottom() + (float) messageGap;
         }
@@ -326,18 +341,43 @@ public:
                     break;
             }
             m.layout.draw (g, m.text);
+            if (m.actionText.isNotEmpty())
+            {
+                const auto over = m.actionArea.contains (hoverPoint);
+                g.setColour (over ? colour::info.brighter (0.2f) : colour::info);
+                g.setFont (textFont (type::body, true));
+                g.drawText (m.actionText, m.actionArea, juce::Justification::centredLeft, false);
+                if (over)
+                    g.fillRect (m.actionArea.getX(), m.actionArea.getBottom() - 3.0f, m.actionArea.getWidth() - 4.0f, 1.0f);
+            }
         }
     }
 
     void mouseMove (const juce::MouseEvent& e) override
     {
-        setMouseCursor (foldAt (e.position) != nullptr ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor);
+        const auto overAction = actionAt (e.position) != nullptr;
+        setMouseCursor (foldAt (e.position) != nullptr || overAction ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor);
+        if (overAction != (actionAt (hoverPoint) != nullptr) || overAction)
+            repaint();
+        hoverPoint = e.position;
+    }
+
+    void mouseExit (const juce::MouseEvent&) override
+    {
+        hoverPoint = { -1.0f, -1.0f };
+        repaint();
     }
 
     void mouseDown (const juce::MouseEvent& e) override
     {
         if (! e.mods.isPopupMenu())
         {
+            if (auto* m = actionAt (e.position); m != nullptr && m->action)
+            {
+                auto action = m->action; // (a copy: the action may change the list)
+                action();
+                return;
+            }
             if (auto* fold = foldAt (e.position))
             {
                 fold->expanded = ! fold->expanded;
@@ -382,6 +422,9 @@ private:
         int group = 0;                // a command inside a fold: the fold's id (0: not in one)
         bool expanded = false;        // a fold: open
         bool shown = true;            // (false: inside a closed fold)
+        juce::String actionText;      // a link line under the text ("Open Settings ›"), and what it does
+        std::function<void()> action;
+        juce::Rectangle<float> actionArea;
         std::vector<Span> spans;
         juce::String plain;           // (for Copy)
         juce::TextLayout layout;
@@ -466,6 +509,17 @@ private:
                                         : "I'm Ghosty. Add a Claude or OpenAI key, pick a model below, and tell me what you want in your own words.",
                           juce::Rectangle<int> (sidePad, juce::roundToInt (centreY - 18.0f), getWidth() - 2 * sidePad, 22), juce::Justification::centred, 2);
     }
+
+    // the message whose link line is under the mouse, or nullptr
+    Message* actionAt (juce::Point<float> p)
+    {
+        for (auto& m : messages)
+            if (m.shown && m.actionText.isNotEmpty() && m.actionArea.contains (p))
+                return &m;
+        return nullptr;
+    }
+
+    juce::Point<float> hoverPoint { -1.0f, -1.0f };
 
     // the fold under the mouse (its row), or nullptr
     Message* foldAt (juce::Point<float> p)
@@ -1086,16 +1140,11 @@ void ConsolePanel::sendToAgent (const juce::String& text)
 
     auto& settings = AiSettings::get();
     const auto& model = settings.selectedModel();
-    if (! model.startsWith ("claude-") && ! model.startsWith ("openai:"))
-    {
-        post (Kind::error, { { cross + " Chat with Google models isn't connected yet: pick a Claude or OpenAI model.", colour::textPrimary, false } });
-        return;
-    }
     const auto provider = model.startsWith ("openai:") ? AiProvider::openai : AiProvider::anthropic;
     const auto key = settings.key (provider);
-    if (! key)
+    if (! key || (! model.startsWith ("claude-") && ! model.startsWith ("openai:")))
     {
-        post (Kind::error, { { cross + " No " + AiSettings::providerName (provider) + " key: add yours in Settings (the gear).", colour::textPrimary, false } });
+        postSetUpAi();
         return;
     }
     const auto& options = settings.provider (provider);
@@ -1107,6 +1156,27 @@ void ConsolePanel::sendToAgent (const juce::String& text)
     composer->setBusy (true);
     auto* registry = CommandBridge::activeRegistry();
     agent->start (text, model, *key, registry != nullptr ? registry->describe() : juce::var(), baseUrl);
+}
+
+// Ghosty's answer while it has no AI to answer with (Ghosty uses the person's own Anthropic / OpenAI key for now): no key
+// yet → add one in Settings; a key but no model picked → pick one. Each with a link that goes there.
+void ConsolePanel::postSetUpAi()
+{
+    using namespace theme;
+    auto& settings = AiSettings::get();
+    const auto hasKey = settings.hasKey (AiProvider::anthropic) || settings.hasKey (AiProvider::openai);
+    const auto arrow = juce::String::fromUTF8 (" \xe2\x80\xba"); // ›
+    if (! hasKey)
+        list->addWithAction (Kind::assistant,
+                             { { "To make music with me, I need an API key from Anthropic (Claude) or OpenAI. Add yours in Settings: it takes a "
+                                 "minute, and each provider's card says where to find it.",
+                                 colour::textPrimary, false } },
+                             "Open Settings" + arrow, [this] { showSettings (true); });
+    else
+        list->addWithAction (Kind::assistant,
+                             { { "Your API key is in. Now pick a Claude or OpenAI model in the picker below, and ask me again.", colour::textPrimary, false } },
+                             "Choose a model" + arrow, [this] { showModelMenu(); });
+    layoutConversation (true);
 }
 
 // One event of the agent's reply: its words stream into one message; each command it runs is a row (✓ / ✗ when done).
@@ -1427,10 +1497,16 @@ void ConsolePanel::submit()
     input.clear();
     resized();
 
-    // an AI model is picked and this isn't a command (or a script of them): the agent takes it
-    if (AiSettings::get().selectedIsAi() && ! isCommandScript (text))
+    // not a command (or a script of them): a message for Ghosty (or, without a key / a model yet, the way to set one up)
+    if (! isCommandScript (text))
     {
-        sendToAgent (text.trim());
+        if (AiSettings::get().selectedIsAi())
+            sendToAgent (text.trim());
+        else
+        {
+            post (Kind::user, { { text.trim(), theme::colour::textPrimary } });
+            postSetUpAi();
+        }
         return;
     }
 

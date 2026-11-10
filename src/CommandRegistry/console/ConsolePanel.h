@@ -109,6 +109,7 @@ private:
     // the agent (an AI model is picked): AgentClient → Ghosty's agent on the Ghosty server, which asks LYNX to run commands
     bool isCommandScript (const juce::String& text) const;
     void sendToAgent (const juce::String& text);
+    void postSetUpAi(); // (no API key / no model yet: Ghosty's answer points to Settings / the picker)
     void agentEvent (const juce::var& event);
     void runForAgent (const juce::String& callId, const juce::String& name, const juce::var& args);
 

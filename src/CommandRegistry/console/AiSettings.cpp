@@ -107,6 +107,9 @@ bool AiSettings::setKey (AiProvider p, const juce::String& key, juce::String& er
     if (first)
         providers[(int) p].enabled = true; // (a first key: use it)
     changed();
+    // (a first key while no AI model is picked: pick one, so Ghosty answers right away; OpenAI's once its list is in)
+    if (p == AiProvider::anthropic && ! selectedIsAi())
+        select ("claude-opus-5-5");
     if (p == AiProvider::openai)
         fetchModels (p);
     return true;
@@ -183,7 +186,7 @@ std::vector<AiModelChoice> AiSettings::models() const
         for (const auto& m : claudeModels)
             out.push_back ({ m.id, m.label, "Anthropic", usable, why });
     }
-    for (auto p : { AiProvider::openai, AiProvider::google })
+    for (auto p : { AiProvider::openai }) // (Google: not offered for now)
     {
         juce::String why;
         const auto usable = availability (p, why);
@@ -310,6 +313,17 @@ void AiSettings::fetchModels (AiProvider p)
             if (! found.isEmpty())
             {
                 providers[(int) p].models = found;
+                if (! selectedIsAi()) // (no AI model picked yet: the newest GPT model)
+                {
+                    juce::String pick = found[0];
+                    for (const auto& m : found)
+                        if (m.startsWith ("gpt-"))
+                        {
+                            pick = m;
+                            break;
+                        }
+                    selected = "openai:" + pick;
+                }
                 changed();
             }
             else
