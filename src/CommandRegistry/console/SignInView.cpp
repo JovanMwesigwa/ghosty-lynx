@@ -197,14 +197,13 @@ void SignInView::paint (juce::Graphics& g)
             break;
     }
 
-    // the footer: who's signed in (then the small "Sign out" link, a child), or why the browser
-    g.setColour (colour::textDisabled);
-    g.setFont (textFont (type::small));
+    // the footer, signed in: who (then the small "Sign out" link, a child)
     if (account.state() == Account::State::signedIn)
-        g.drawText (footerText(), footerTextArea, juce::Justification::centredRight);
-    else
-        g.drawFittedText ("You sign in in your browser: Ghosty never sees your password.", getLocalBounds().removeFromBottom (44).reduced (16, 0),
-                          juce::Justification::centred, 2);
+    {
+        g.setColour (colour::textDisabled);
+        g.setFont (textFont (type::small));
+        g.drawText (footerLine, footerTextArea, juce::Justification::centredRight);
+    }
 }
 
 void SignInView::resized()
@@ -249,17 +248,29 @@ void SignInView::resized()
             break;
     }
 
-    // the footer line: "Signed in as you@example.com  ·  " then the Sign out link, centred together
+    // the footer line: "Signed in as you@example.com  ·" then the Sign out link, centred together; a long address is
+    // shortened to fit (in its name, so the domain stays: "jovanmwesigw…@gmail.com")
     const auto font = textFont (theme::type::small);
-    const auto textWidth = juce::roundToInt (juce::GlyphArrangement::getStringWidth (font, footerText())) + 2;
-    const auto linkWidth = juce::roundToInt (juce::GlyphArrangement::getStringWidth (font, "Sign out")) + 8;
-    auto footer = getLocalBounds().removeFromBottom (44).withSizeKeepingCentre (juce::jmin (getWidth() - 32, textWidth + linkWidth), 22);
+    const auto widthOf = [&font] (const juce::String& s) { return juce::roundToInt (juce::GlyphArrangement::getStringWidth (font, s)) + 2; };
+    const auto linkWidth = widthOf ("Sign out") + 6;
+    const auto room = juce::jmax (0, getWidth() - 32 - linkWidth);
+    const auto ellipsis = juce::String::fromUTF8 ("\xe2\x80\xa6");
+    const auto line = [&] (const juce::String& email) { return "Signed in as " + email + "  " + juce::String::fromUTF8 ("\xc2\xb7"); };
+    const auto email = Account::get().email();
+    auto name = email.upToLastOccurrenceOf ("@", false, false), domain = email.fromLastOccurrenceOf ("@", true, false);
+    footerLine = line (email);
+    while (widthOf (footerLine) > room && name.length() > 1)
+    {
+        name = name.dropLastCharacters (1);
+        footerLine = line (name + ellipsis + domain);
+    }
+    while (widthOf (footerLine) > room && domain.length() > 4) // (still too narrow: the domain's end goes too)
+    {
+        domain = domain.dropLastCharacters (1);
+        footerLine = line (name + ellipsis + domain + ellipsis);
+    }
+    auto footer = getLocalBounds().removeFromBottom (44).withSizeKeepingCentre (juce::jmin (getWidth() - 32, widthOf (footerLine) + linkWidth), 22);
     footerTextArea = footer.removeFromLeft (juce::jmax (0, footer.getWidth() - linkWidth));
     signOut.setBounds (footer);
-}
-
-juce::String SignInView::footerText()
-{
-    return "Signed in as " + Account::get().email() + "  " + juce::String::fromUTF8 ("\xc2\xb7");
 }
 } // namespace lynx::commands

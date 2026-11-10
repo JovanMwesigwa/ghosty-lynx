@@ -31,7 +31,6 @@ private:
 
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void refresh();
-    static juce::String footerText(); // "Signed in as you@example.com  ·"
 
     juce::TextButton create, signIn, openAgain, cancel;     // signing in
     juce::TextButton retry;                                 // checking the plan
@@ -40,5 +39,6 @@ private:
     juce::TextButton checkNow, stopWaiting;                 // paying
     juce::Rectangle<int> content;                           // (the centred column)
     juce::Rectangle<int> footerTextArea;                    // (the footer's text, left of Sign out)
+    juce::String footerLine;                                // "Signed in as you@example.com  ·" (shortened to fit)
 };
 } // namespace lynx::commands
