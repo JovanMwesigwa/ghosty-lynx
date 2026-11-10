@@ -3,7 +3,7 @@
 // SignInView: what the Ghosty panel shows until Ghosty can be used, in place of the chat. Ghosty needs a Ghosty
 // account (Account) and the Launch plan (its 7-day free trial included):
 //
-//   signed out           Welcome to Ghosty              [Create account] [Sign in]
+//   signed out           Welcome to Ghosty              [Continue with Google]
 //   signing in           Continue in your browser (it comes back to LYNX by itself), Open the page again / Cancel
 //   checking the plan    Checking your plan...          (Try again when the server doesn't answer)
 //   no plan              Start your 7-day free trial    [See plans]   (the plans page in the browser)

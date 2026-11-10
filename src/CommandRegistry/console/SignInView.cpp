@@ -60,7 +60,7 @@ SignInView::Screen SignInView::screen()
 
 SignInView::SignInView()
 {
-    create.setButtonText ("Create account");
+    create.setButtonText ("Continue with Google"); // (the only way in: a new Google user gets an account)
     signIn.setButtonText ("Sign in");
     openAgain.setButtonText ("Open the page again");
     cancel.setButtonText ("Cancel");
@@ -74,7 +74,7 @@ SignInView::SignInView()
     for (auto* b : { &signIn, &openAgain, &cancel, &retry, &stopWaiting })
         styleButton (*b, false);
 
-    create.onClick = [] { Account::get().signIn (true); };
+    create.onClick = [] { Account::get().signIn (false); };
     signIn.onClick = [] { Account::get().signIn (false); };
     openAgain.onClick = [] { Account::get().openPageAgain(); };
     cancel.onClick = [] { Account::get().cancel(); };
@@ -106,7 +106,7 @@ void SignInView::refresh()
     const auto s = screen();
     const auto& a = Account::get();
     create.setVisible (s == Screen::signIn);
-    signIn.setVisible (s == Screen::signIn);
+    signIn.setVisible (false); // (Google only: one button)
     openAgain.setVisible (s == Screen::waiting);
     cancel.setVisible (s == Screen::starting || s == Screen::waiting);
     retry.setVisible (s == Screen::checking && a.error().isNotEmpty());
@@ -141,8 +141,8 @@ void SignInView::paint (juce::Graphics& g)
     {
         case Screen::signIn:
             line (g, "Welcome to Ghosty", area, 26, title, colour::textPrimary);
-            line (g, "Sign in or create an account to start making music with Ghosty, LYNX's AI.", area, 40, body, colour::textSecondary);
-            area.removeFromTop (6 + 34 + 8 + 34 + 10); // (the two buttons, stacked)
+            line (g, "Sign in with Google to start making music with Ghosty, LYNX's AI.", area, 40, body, colour::textSecondary);
+            area.removeFromTop (6 + 34 + 10); // (the button)
             error();
             break;
 
@@ -152,7 +152,7 @@ void SignInView::paint (juce::Graphics& g)
 
         case Screen::waiting:
             line (g, "Continue in your browser", area, 26, title, colour::textPrimary);
-            line (g, "Sign in or create your account there. LYNX picks it up by itself.", area, 40, body, colour::textSecondary);
+            line (g, "Choose your Google account there. LYNX picks it up by itself.", area, 40, body, colour::textSecondary);
             break;
 
         case Screen::checking:
@@ -227,7 +227,7 @@ void SignInView::resized()
 
     switch (s)
     {
-        case Screen::signIn: column (top, create, signIn); break;
+        case Screen::signIn: row (top, { { &create, juce::jmin (content.getWidth(), 240) } }); break;
         case Screen::starting: row (top, { { &cancel, 90 } }); break;
         case Screen::waiting: column (top, openAgain, cancel); break;
         case Screen::checking: row (top, { { &retry, 100 } }); break;
