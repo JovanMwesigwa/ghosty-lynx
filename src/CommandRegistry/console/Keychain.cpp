@@ -125,7 +125,9 @@ bool set (const juce::String& account, const juce::String& secret, juce::String&
 void remove (const juce::String& account)
 {
     auto keys = readKeys();
-    keys.remove (account);
+    // (by position: StringPairArray::remove has a key and an index overload, ambiguous for a String with GCC)
+    if (const auto index = keys.getAllKeys().indexOf (account); index >= 0)
+        keys.remove (index);
     writeKeys (keys);
 }
 #endif
