@@ -41,14 +41,6 @@ int line (juce::Graphics& g, const juce::String& text, juce::Rectangle<int>& are
     g.drawFittedText (text, area.removeFromTop (height), juce::Justification::centred, lines);
     return height;
 }
-
-juce::String offerLabel (const juce::String& interval)
-{
-    for (const auto& o : Account::get().offers())
-        if (o.interval == interval)
-            return o.label;
-    return {};
-}
 } // namespace
 
 SignInView::Screen SignInView::screen()
@@ -73,29 +65,26 @@ SignInView::SignInView()
     openAgain.setButtonText ("Open the page again");
     cancel.setButtonText ("Cancel");
     retry.setButtonText ("Try again");
-    compare.setButtonText ("Compare plans");
+    seePlans.setButtonText ("See plans");
     signOut.setButtonText ("Sign out");
     checkNow.setButtonText ("I've paid: check now");
     stopWaiting.setButtonText ("Stop waiting");
-    for (auto* b : { &create, &monthly, &yearly, &checkNow })
-        styleButton (*b, b != &monthly); // (yearly is the one to pick: the best price)
+    for (auto* b : { &create, &seePlans, &checkNow })
+        styleButton (*b, true);
     for (auto* b : { &signIn, &openAgain, &cancel, &retry, &stopWaiting })
         styleButton (*b, false);
-    for (auto* b : { &compare, &signOut })
-        styleLink (*b);
+    styleLink (signOut);
 
     create.onClick = [] { Account::get().signIn (true); };
     signIn.onClick = [] { Account::get().signIn (false); };
     openAgain.onClick = [] { Account::get().openPageAgain(); };
     cancel.onClick = [] { Account::get().cancel(); };
     retry.onClick = [] { Account::get().refresh(); };
-    monthly.onClick = [] { Account::get().upgrade ("month"); };
-    yearly.onClick = [] { Account::get().upgrade ("year"); };
-    compare.onClick = [] { Account::get().openUpgradePage(); };
+    seePlans.onClick = [] { Account::get().openUpgradePage(); };
     signOut.onClick = [] { Account::get().signOut(); };
     checkNow.onClick = [] { Account::get().checkPlan(); };
     stopWaiting.onClick = [] { Account::get().cancelUpgrade(); };
-    for (auto* b : { &create, &signIn, &openAgain, &cancel, &retry, &monthly, &yearly, &compare, &signOut, &checkNow, &stopWaiting })
+    for (auto* b : { &create, &signIn, &openAgain, &cancel, &retry, &seePlans, &signOut, &checkNow, &stopWaiting })
         addChildComponent (*b);
 
     Account::get().addChangeListener (this);
@@ -122,14 +111,8 @@ void SignInView::refresh()
     cancel.setVisible (s == Screen::starting || s == Screen::waiting);
     retry.setVisible (s == Screen::checking && a.error().isNotEmpty());
 
-    const auto month = offerLabel ("month"), year = offerLabel ("year");
-    const auto plans = s == Screen::plan && a.billingAvailable();
-    monthly.setButtonText ("Monthly  " + juce::String::fromUTF8 ("\xc2\xb7") + "  " + month);
-    yearly.setButtonText ("Yearly  " + juce::String::fromUTF8 ("\xc2\xb7") + "  " + year);
-    monthly.setVisible (plans && month.isNotEmpty());
-    yearly.setVisible (plans && year.isNotEmpty());
-    compare.setVisible (s == Screen::plan);
-    signOut.setVisible (s == Screen::plan || s == Screen::checking);
+    seePlans.setVisible (s == Screen::plan && a.billingAvailable());
+    signOut.setVisible (a.state() == Account::State::signedIn);
     retry.setVisible (retry.isVisible() || (s == Screen::plan && ! a.billingAvailable()));
     checkNow.setVisible (s == Screen::paying);
     stopWaiting.setVisible (s == Screen::paying);
@@ -198,16 +181,10 @@ void SignInView::paint (juce::Graphics& g)
             const auto trial = account.trialDays();
             line (g, trial > 0 ? "Start your " + juce::String (trial) + "-day free trial" : juce::String ("Upgrade to Launch"), area, 26, title,
                   colour::textPrimary);
-            line (g,
-                  trial > 0 ? "Ghosty is part of the Launch plan. Try it free for " + juce::String (trial) + " days, then pick monthly or yearly. "
-                                  "Cancel anytime."
-                            : juce::String ("Ghosty is part of the Launch plan. Pick monthly or yearly; cancel anytime."),
-                  area, 58, body, colour::textSecondary, 3);
-            area.removeFromTop (8 + 34 + 6 + 34 + 10); // (the plan buttons, then Compare plans / Sign out)
+            line (g, "Ghosty is part of the Launch plan.", area, 24, body, colour::textSecondary, 1);
+            area.removeFromTop (8 + 34 + 12); // (See plans)
             if (! account.billingAvailable())
                 line (g, "Plans aren't available right now. Try again in a moment.", area, 36, textFont (type::small), colour::warning);
-            else if (trial > 0)
-                line (g, "Nothing to pay today: your card is charged when the trial ends.", area, 22, textFont (type::small), colour::textDisabled);
             error();
             break;
         }
@@ -220,13 +197,14 @@ void SignInView::paint (juce::Graphics& g)
             break;
     }
 
-    // the footer: who's signed in, or why the browser
-    auto footer = getLocalBounds().removeFromBottom (44).reduced (16, 0);
+    // the footer: who's signed in (then the small "Sign out" link, a child), or why the browser
     g.setColour (colour::textDisabled);
     g.setFont (textFont (type::small));
-    g.drawFittedText (account.state() == Account::State::signedIn ? "Signed in as " + account.email()
-                                                                   : juce::String ("You sign in in your browser: Ghosty never sees your password."),
-                      footer, juce::Justification::centred, 2);
+    if (account.state() == Account::State::signedIn)
+        g.drawText (footerText(), footerTextArea, juce::Justification::centredRight);
+    else
+        g.drawFittedText ("You sign in in your browser: Ghosty never sees your password.", getLocalBounds().removeFromBottom (44).reduced (16, 0),
+                          juce::Justification::centred, 2);
 }
 
 void SignInView::resized()
@@ -242,7 +220,7 @@ void SignInView::resized()
                     : s == Screen::starting                      ? 26 + 12
                     : s == Screen::waiting                       ? 26 + 38 + 8 + 52 + 16
                     : s == Screen::checking                      ? 26 + 22 + 10
-                                                                 : 26 + 58 + 8; // (plan)
+                                                                 : 26 + 24 + 8; // (plan)
     const auto top = content.getY() + 44 + 14 + text;
     auto row = [&] (int y, std::initializer_list<std::pair<juce::Button*, int>> buttons) {
         int total = 0;
@@ -261,22 +239,27 @@ void SignInView::resized()
         case Screen::signIn: row (top, { { &create, 140 }, { &signIn, 100 } }); break;
         case Screen::starting: row (top, { { &cancel, 90 } }); break;
         case Screen::waiting: row (top, { { &openAgain, 160 }, { &cancel, 80 } }); break;
-        case Screen::checking: row (top, { { &retry, 100 }, { &signOut, 90 } }); break;
+        case Screen::checking: row (top, { { &retry, 100 } }); break;
         case Screen::paying: row (top, { { &checkNow, 170 }, { &stopWaiting, 110 } }); break;
         case Screen::plan:
-        {
-            const auto w = juce::jmin (176, (content.getWidth() - 8) / 2);
-            if (monthly.isVisible() && yearly.isVisible())
-                row (top, { { &monthly, w }, { &yearly, w } });
-            else if (yearly.isVisible())
-                row (top, { { &yearly, w } });
-            else if (monthly.isVisible())
-                row (top, { { &monthly, w } });
+            if (seePlans.isVisible())
+                row (top, { { &seePlans, 140 } });
             else if (retry.isVisible())
                 row (top, { { &retry, 100 } });
-            row (top + 34 + 6, { { &compare, 120 }, { &signOut, 80 } });
             break;
-        }
     }
+
+    // the footer line: "Signed in as you@example.com  ·  " then the Sign out link, centred together
+    const auto font = textFont (theme::type::small);
+    const auto textWidth = juce::roundToInt (juce::GlyphArrangement::getStringWidth (font, footerText())) + 2;
+    const auto linkWidth = juce::roundToInt (juce::GlyphArrangement::getStringWidth (font, "Sign out")) + 8;
+    auto footer = getLocalBounds().removeFromBottom (44).withSizeKeepingCentre (juce::jmin (getWidth() - 32, textWidth + linkWidth), 22);
+    footerTextArea = footer.removeFromLeft (juce::jmax (0, footer.getWidth() - linkWidth));
+    signOut.setBounds (footer);
+}
+
+juce::String SignInView::footerText()
+{
+    return "Signed in as " + Account::get().email() + "  " + juce::String::fromUTF8 ("\xc2\xb7");
 }
 } // namespace lynx::commands

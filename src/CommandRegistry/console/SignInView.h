@@ -6,11 +6,11 @@
 //   signed out           Welcome to Ghosty              [Create account] [Sign in]
 //   signing in           the code to approve in the browser, Open the page again / Cancel
 //   checking the plan    Checking your plan...          (Try again when the server doesn't answer)
-//   no plan              Start your 7-day free trial    [Monthly · $50 / month] [Yearly · $490 / year]
-//                        Compare plans · Sign out
+//   no plan              Start your 7-day free trial    [See plans]   (the plans page in the browser)
 //   paying               Finish the checkout in your browser   [I've paid: check now] [Stop waiting]
 //
-// Once the plan is on, the panel swaps this for the chat by itself (Account follows the payment).
+// Signed in, the footer says who, with a small "Sign out". Once the plan is on, the panel swaps this for the chat by
+// itself (Account follows the payment).
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -31,11 +31,14 @@ private:
 
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void refresh();
+    static juce::String footerText(); // "Signed in as you@example.com  ·"
 
     juce::TextButton create, signIn, openAgain, cancel;     // signing in
     juce::TextButton retry;                                 // checking the plan
-    juce::TextButton monthly, yearly, compare, signOut;     // no plan
+    juce::TextButton seePlans;                              // no plan: the plans page in the browser
+    juce::TextButton signOut;                               // (in the footer, after "Signed in as ...")
     juce::TextButton checkNow, stopWaiting;                 // paying
     juce::Rectangle<int> content;                           // (the centred column)
+    juce::Rectangle<int> footerTextArea;                    // (the footer's text, left of Sign out)
 };
 } // namespace lynx::commands
