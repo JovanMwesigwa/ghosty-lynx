@@ -60,6 +60,9 @@ juce::String myName()
 
 void addMenuItems (juce::PopupMenu& menu, Context c)
 {
+    if (! available)
+        return;
+    menu.addSeparator();
     const bool active = c.live.isActive();
     menu.addItem (tr ("Start live session..."), ! active, false, [c] { start (c); });
     menu.addItem (tr ("Join live session..."), ! active, false, [c] { join (c); });
@@ -183,6 +186,8 @@ void leave (Context c)
 
 void offerResume (Context c)
 {
+    if (! available)
+        return;
     const auto journal = LiveSessionManager::defaultJournal();
     const auto info = LiveSessionManager::readJournal (journal);
     if (! info)

@@ -14,6 +14,12 @@ class LiveSessionManager;
 
 namespace liveui
 {
+// Live sessions run through a relay server, and this build has none of its own yet (the original LYNX SHARE's relay,
+// relay.lynx-share.com, is someone else's service). So they're switched off: no File › Online session items for
+// them, no offer to resume one at start-up. (Sending a project / a part as a file, which needs no server, stays.)
+// Turn this on once there's a relay of this build's own (LiveSessionManager::Options::relay).
+inline constexpr bool available = false;
+
 struct Context
 {
     AudioEngine& engine;

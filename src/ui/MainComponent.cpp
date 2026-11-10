@@ -5743,8 +5743,7 @@ juce::PopupMenu MainComponent::getMenuForIndex (int barIndex, const juce::String
             online.addItem (tr ("Send project..."), ! guestCopy, false, [this] { sessionui::sendProject (sessionContext()); });
             online.addItem (tr ("Send my part back..."), guestCopy, false, [this] { sessionui::sendPartBack (sessionContext()); });
             online.addItem (tr ("Merge a part..."), ! guestCopy, false, [this] { sessionui::mergePart (sessionContext()); });
-            online.addSeparator();
-            liveui::addMenuItems (online, liveContext());
+            liveui::addMenuItems (online, liveContext()); // (live sessions: off in this build, see liveui::available)
             menu.addSubMenu (tr ("Online session"), online);
         }
 
