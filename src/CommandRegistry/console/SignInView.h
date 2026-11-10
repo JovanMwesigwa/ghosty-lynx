@@ -18,6 +18,14 @@ namespace lynx::commands
 {
 class SignInView final : public juce::Component, private juce::ChangeListener
 {
+    // a small text link, always on one line, in the footer's font ("Sign out")
+    class Link final : public juce::Button
+    {
+    public:
+        Link() : juce::Button ({}) { setMouseCursor (juce::MouseCursor::PointingHandCursor); }
+        void paintButton (juce::Graphics& g, bool over, bool down) override;
+    };
+
 public:
     SignInView();
     ~SignInView() override;
@@ -35,7 +43,7 @@ private:
     juce::TextButton create, signIn, openAgain, cancel;     // signing in
     juce::TextButton retry;                                 // checking the plan
     juce::TextButton seePlans;                              // no plan: the plans page in the browser
-    juce::TextButton signOut;                               // (in the footer, after "Signed in as ...")
+    Link signOut;                                           // (in the footer, after "Signed in as ...")
     juce::TextButton checkNow, stopWaiting;                 // paying
     juce::Rectangle<int> content;                           // (the centred column)
     juce::Rectangle<int> footerTextArea;                    // (the footer's text, left of Sign out)

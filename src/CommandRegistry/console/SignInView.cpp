@@ -21,17 +21,6 @@ void styleButton (juce::TextButton& b, bool filled)
     b.setMouseCursor (juce::MouseCursor::PointingHandCursor);
 }
 
-// a quiet text link ("Compare plans", "Sign out")
-void styleLink (juce::TextButton& b)
-{
-    using namespace theme;
-    b.setColour (juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
-    b.setColour (juce::TextButton::buttonOnColourId, juce::Colours::transparentBlack);
-    b.setColour (juce::TextButton::textColourOffId, colour::textSecondary);
-    b.setColour (juce::TextButton::textColourOnId, colour::textPrimary);
-    b.setColour (juce::ComboBox::outlineColourId, juce::Colours::transparentBlack);
-    b.setMouseCursor (juce::MouseCursor::PointingHandCursor);
-}
 
 // centred text (wraps to `lines`); returns the height used
 int line (juce::Graphics& g, const juce::String& text, juce::Rectangle<int>& area, int height, juce::Font font, juce::Colour colour, int lines = 2)
@@ -42,6 +31,17 @@ int line (juce::Graphics& g, const juce::String& text, juce::Rectangle<int>& are
     return height;
 }
 } // namespace
+
+void SignInView::Link::paintButton (juce::Graphics& g, bool over, bool down)
+{
+    using namespace theme;
+    g.setColour (down ? colour::textPrimary : over ? colour::textPrimary : colour::textSecondary);
+    g.setFont (textFont (type::small));
+    g.drawSingleLineText (getButtonText(), 0, juce::roundToInt ((float) getHeight() / 2.0f + textFont (type::small).getAscent() / 2.0f - 1.0f));
+    if (over) // (underlined on hover, like a link)
+        g.fillRect (0.0f, (float) getHeight() / 2.0f + textFont (type::small).getAscent() / 2.0f + 1.0f,
+                    juce::GlyphArrangement::getStringWidth (textFont (type::small), getButtonText()), 1.0f);
+}
 
 SignInView::Screen SignInView::screen()
 {
@@ -73,7 +73,6 @@ SignInView::SignInView()
         styleButton (*b, true);
     for (auto* b : { &signIn, &openAgain, &cancel, &retry, &stopWaiting })
         styleButton (*b, false);
-    styleLink (signOut);
 
     create.onClick = [] { Account::get().signIn (true); };
     signIn.onClick = [] { Account::get().signIn (false); };
@@ -84,8 +83,9 @@ SignInView::SignInView()
     signOut.onClick = [] { Account::get().signOut(); };
     checkNow.onClick = [] { Account::get().checkPlan(); };
     stopWaiting.onClick = [] { Account::get().cancelUpgrade(); };
-    for (auto* b : { &create, &signIn, &openAgain, &cancel, &retry, &seePlans, &signOut, &checkNow, &stopWaiting })
+    for (auto* b : { &create, &signIn, &openAgain, &cancel, &retry, &seePlans, &checkNow, &stopWaiting })
         addChildComponent (*b);
+    addChildComponent (signOut);
 
     Account::get().addChangeListener (this);
     refresh();
@@ -253,7 +253,7 @@ void SignInView::resized()
     // shortens the domain).
     const auto font = textFont (theme::type::small);
     const auto widthOf = [&font] (const juce::String& s) { return juce::roundToInt (juce::GlyphArrangement::getStringWidth (font, s)) + 2; };
-    const auto linkWidth = widthOf ("Sign out") + 6;
+    const auto linkWidth = widthOf ("Sign out") + 6; // (6: the space before it)
     const auto room = juce::jmax (0, getWidth() - 32 - linkWidth);
     const auto line = [] (const juce::String& email) { return "Signed in as " + email + "  " + juce::String::fromUTF8 ("\xc2\xb7"); };
     const auto email = Account::get().email();
@@ -268,6 +268,6 @@ void SignInView::resized()
     }
     auto footer = getLocalBounds().removeFromBottom (44).withSizeKeepingCentre (juce::jmin (getWidth() - 32, widthOf (footerLine) + linkWidth), 22);
     footerTextArea = footer.removeFromLeft (juce::jmax (0, footer.getWidth() - linkWidth));
-    signOut.setBounds (footer);
+    signOut.setBounds (footer.withTrimmedLeft (6));
 }
 } // namespace lynx::commands
