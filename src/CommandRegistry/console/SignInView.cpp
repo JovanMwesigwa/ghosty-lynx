@@ -142,7 +142,7 @@ void SignInView::paint (juce::Graphics& g)
         case Screen::signIn:
             line (g, "Welcome to Ghosty", area, 26, title, colour::textPrimary);
             line (g, "Sign in or create an account to start making music with Ghosty, LYNX's AI.", area, 40, body, colour::textSecondary);
-            area.removeFromTop (54);
+            area.removeFromTop (6 + 34 + 8 + 34 + 10); // (the two buttons, stacked)
             error();
             break;
 
@@ -192,7 +192,7 @@ void SignInView::paint (juce::Graphics& g)
         case Screen::paying:
             line (g, "Finish the checkout in your browser", area, 26, title, colour::textPrimary);
             line (g, "Ghosty opens here by itself as soon as your plan starts.", area, 40, body, colour::textSecondary);
-            area.removeFromTop (54);
+            area.removeFromTop (6 + 34 + 8 + 34 + 10); // (the two buttons, stacked)
             error();
             break;
     }
@@ -221,6 +221,12 @@ void SignInView::resized()
                     : s == Screen::checking                      ? 26 + 22 + 10
                                                                  : 26 + 24 + 8; // (plan)
     const auto top = content.getY() + 44 + 14 + text;
+    // two choices: one above the other, the same width (the main one first)
+    auto column = [&] (int y, juce::Button& first, juce::Button& second) {
+        const auto w = juce::jmin (content.getWidth(), 240);
+        first.setBounds (juce::Rectangle<int> (w, 34).withCentre ({ content.getCentreX(), y + 17 }));
+        second.setBounds (juce::Rectangle<int> (w, 34).withCentre ({ content.getCentreX(), y + 34 + 8 + 17 }));
+    };
     auto row = [&] (int y, std::initializer_list<std::pair<juce::Button*, int>> buttons) {
         int total = 0;
         for (const auto& [b, w] : buttons)
@@ -235,11 +241,11 @@ void SignInView::resized()
 
     switch (s)
     {
-        case Screen::signIn: row (top, { { &create, 140 }, { &signIn, 100 } }); break;
+        case Screen::signIn: column (top, create, signIn); break;
         case Screen::starting: row (top, { { &cancel, 90 } }); break;
-        case Screen::waiting: row (top, { { &openAgain, 160 }, { &cancel, 80 } }); break;
+        case Screen::waiting: column (top, openAgain, cancel); break;
         case Screen::checking: row (top, { { &retry, 100 } }); break;
-        case Screen::paying: row (top, { { &checkNow, 170 }, { &stopWaiting, 110 } }); break;
+        case Screen::paying: column (top, checkNow, stopWaiting); break;
         case Screen::plan:
             if (seePlans.isVisible())
                 row (top, { { &seePlans, 140 } });
