@@ -151,23 +151,9 @@ void SignInView::paint (juce::Graphics& g)
             break;
 
         case Screen::waiting:
-        {
-            line (g, "Finish in your browser", area, 26, title, colour::textPrimary);
-            line (g, "Sign in or create your account there, then approve this code:", area, 38, body, colour::textSecondary);
-            area.removeFromTop (8);
-            auto code = account.code();
-            if (code.length() == 8)
-                code = code.substring (0, 4) + "-" + code.substring (4); // (ABCD-EFGH)
-            const auto box = area.removeFromTop (52).withSizeKeepingCentre (juce::jmin (area.getWidth(), 220), 52).toFloat();
-            g.setColour (colour::bg2);
-            g.fillRoundedRectangle (box, 8.0f);
-            g.setColour (colour::bg4);
-            g.drawRoundedRectangle (box.reduced (0.5f), 8.0f, 1.0f);
-            g.setColour (colour::textPrimary);
-            g.setFont (juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 24.0f, juce::Font::bold)));
-            g.drawText (code, box, juce::Justification::centred);
+            line (g, "Continue in your browser", area, 26, title, colour::textPrimary);
+            line (g, "Sign in or create your account there. LYNX picks it up by itself.", area, 40, body, colour::textSecondary);
             break;
-        }
 
         case Screen::checking:
             line (g, "Checking your plan...", area, 26, title, colour::textPrimary);
@@ -217,7 +203,7 @@ void SignInView::resized()
     const auto s = screen();
     const auto text = s == Screen::signIn || s == Screen::paying ? 26 + 40 + 6
                     : s == Screen::starting                      ? 26 + 12
-                    : s == Screen::waiting                       ? 26 + 38 + 8 + 52 + 16
+                    : s == Screen::waiting                       ? 26 + 40 + 6
                     : s == Screen::checking                      ? 26 + 22 + 10
                                                                  : 26 + 24 + 8; // (plan)
     const auto top = content.getY() + 44 + 14 + text;

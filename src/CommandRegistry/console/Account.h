@@ -2,12 +2,12 @@
 
 // Account: the LYNX account this app is signed in to (the LYNX server: server/, NestJS + Better Auth).
 //
-// Signing in is a device sign-in (like a TV or a CLI): LYNX asks the server for a code, opens the browser on the
-// server's /device page (the user signs in there and approves the code), and waits; once approved it receives a session
-// token, kept in the Keychain ("lynx-session"), and sent as "Authorization: Bearer <token>" from then on. LYNX itself
-// never sees the password.
+// Signing in, as desktop apps do it (a loopback redirect with PKCE): LYNX listens on 127.0.0.1 (a free port), opens the
+// browser on the server's /desktop/authorize page (sign in or create the account there), and the browser comes back to
+// LYNX's address with a one-time code, which LYNX trades (with a secret only it has) for a session token, kept in the
+// Keychain ("lynx-session") and sent as "Authorization: Bearer <token>" from then on. LYNX never sees the password.
 //
-//   signedOut ──signIn()──▶ starting ──▶ waiting (code shown, browser open) ──approved──▶ signedIn
+//   signedOut ──signIn()──▶ starting ──▶ waiting (the browser open) ──back with the code──▶ signedIn
 //                                            └──cancel() / denied / expired──▶ signedOut (with `error`)
 //
 // One shared instance (get()), message thread only; it broadcasts a change message whenever its state changes.

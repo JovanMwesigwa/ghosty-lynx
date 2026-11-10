@@ -1,8 +1,10 @@
 #include "CommandRegistry/console/Account.h"
 
 #include "CommandRegistry/console/Keychain.h"
+#include "core/Sha256.h"
 
 #include <functional>
+#include <random>
 
 namespace lynx::commands
 {
@@ -49,6 +51,55 @@ juce::var object (std::initializer_list<std::pair<const char*, juce::var>> prope
     for (const auto& [k, v] : properties)
         o->setProperty (k, v);
     return juce::var (o);
+}
+
+// A random hex string of `bytes` bytes (the sign-in's state and PKCE verifier).
+juce::String randomHex (int bytes)
+{
+    std::random_device device;
+    juce::String out;
+    for (int i = 0; i < bytes; ++i)
+        out << juce::String::toHexString ((int) (device() & 0xff)).paddedLeft ('0', 2);
+    return out;
+}
+
+// The first line of an HTTP request on `client` ("GET /callback?... HTTP/1.1"; the rest is read and ignored).
+juce::String readRequestLine (juce::StreamingSocket& client)
+{
+    juce::MemoryBlock data;
+    char buffer[2048];
+    for (int tries = 0; tries < 20 && data.getSize() < 16384; ++tries)
+    {
+        if (client.waitUntilReady (true, 250) != 1)
+            continue;
+        const auto n = client.read (buffer, (int) sizeof (buffer), false);
+        if (n <= 0)
+            break;
+        data.append (buffer, (size_t) n);
+        if (data.toString().contains ("\r\n\r\n"))
+            break;
+    }
+    return data.toString().upToFirstOccurrenceOf ("\r\n", false, false);
+}
+
+void respond (juce::StreamingSocket& client, int status, const juce::String& body)
+{
+    const auto bytes = body.toStdString();
+    const auto head = "HTTP/1.1 " + juce::String (status) + (status == 200 ? " OK" : status == 404 ? " Not Found" : " Bad Request")
+                    + "\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: " + juce::String ((int) bytes.size())
+                    + "\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n";
+    const auto all = head.toStdString() + bytes;
+    client.write (all.data(), (int) all.size());
+}
+
+// The page the browser shows on LYNX's address after the sign-in (Ghosty's look).
+juce::String pageHtml (const juce::String& title, const juce::String& text)
+{
+    return "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+           "<title>" + title + " · Ghosty</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#101114;"
+           "color:#ecedef;font:16px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}main{text-align:center;padding:24px}"
+           "h1{font-size:22px;margin:0 0 8px}p{color:#9aa0a8;margin:0}</style></head><body><main><h1>" + title + "</h1><p>" + text
+           + "</p></main></body></html>";
 }
 
 const juce::String notAnswering = "Ghosty's server isn't answering (bun run dev starts it).";
@@ -113,69 +164,80 @@ void Account::signIn (bool createAccount)
                 if (gen->load() != mine)
                     return;
                 lastError = message;
-                userCode.clear();
+                pageUrl.clear();
                 setState (State::signedOut);
             });
         };
 
-        // 1. a code for this sign-in
-        const auto codeReply = request ("/api/auth/device/code", object ({ { "client_id", clientId } }));
-        if (codeReply.status != 200)
-            return fail (codeReply.status == 0 ? notAnswering : "The server didn't start the sign-in (" + juce::String (codeReply.status) + ").");
-        const auto deviceCode = codeReply.json["device_code"].toString();
-        const auto code = codeReply.json["user_code"].toString();
-        const auto page = codeReply.json["verification_uri_complete"].toString() + (createAccount ? "&mode=create" : "");
-        auto interval = juce::jmax (1, (int) codeReply.json["interval"]);
-        const auto deadline = juce::Time::getMillisecondCounter() + (juce::uint32) juce::jmax (60, (int) codeReply.json["expires_in"]) * 1000;
+        // 1. LYNX's address for the browser to come back to: 127.0.0.1, a free port, only for this sign-in
+        juce::StreamingSocket listener;
+        if (! listener.createListener (0, "127.0.0.1"))
+            return fail ("LYNX couldn't open its sign-in address on this computer.");
+        const auto redirect = "http://127.0.0.1:" + juce::String (listener.getBoundPort()) + "/callback";
+        const auto state = randomHex (24), verifier = randomHex (32);
+        const auto challenge = juce::String (lynx::sha256Hex ((const std::uint8_t*) verifier.toRawUTF8(), verifier.getNumBytesAsUTF8()));
+        const auto page = juce::URL (serverUrl() + "/desktop/authorize")
+                              .withParameter ("redirect_uri", redirect)
+                              .withParameter ("state", state)
+                              .withParameter ("challenge", challenge)
+                              .withParameter ("mode", createAccount ? "create" : "signin")
+                              .toString (true);
 
-        // 2. show it, and open the browser on the page that approves it
-        post ([this, code, page, mine, gen] {
+        // 2. the browser: sign in (or create the account) there
+        post ([this, page, mine, gen] {
             if (gen->load() != mine)
                 return;
-            userCode = code;
             pageUrl = page;
             setState (State::waiting);
             juce::URL (page).launchInDefaultBrowser();
         });
 
-        // 3. wait for the approval
-        while (gen->load() == mine)
+        // 3. wait for it to come back with the one-time code (10 minutes; Cancel or a new sign-in stops it)
+        const auto deadline = juce::Time::getMillisecondCounter() + 10u * 60u * 1000u;
+        while (gen->load() == mine && juce::Time::getMillisecondCounter() < deadline)
         {
-            for (int t = 0; t < interval * 10 && gen->load() == mine; ++t)
-                juce::Thread::sleep (100);
-            if (gen->load() != mine)
-                return; // (cancelled, or a newer sign-in)
-            if (juce::Time::getMillisecondCounter() > deadline)
-                return fail ("The sign-in code expired: sign in again.");
+            if (listener.waitUntilReady (true, 500) != 1)
+                continue;
+            std::unique_ptr<juce::StreamingSocket> client (listener.waitForNextConnection());
+            if (client == nullptr)
+                continue;
 
-            const auto reply = request ("/api/auth/device/token",
-                                        object ({ { "grant_type", "urn:ietf:params:oauth:grant-type:device_code" },
-                                                  { "device_code", deviceCode },
-                                                  { "client_id", clientId } }));
-            const auto token = reply.json["access_token"].toString();
-            if (reply.status == 200 && token.isNotEmpty())
+            const auto requestLine = readRequestLine (*client); // "GET /callback?code=...&state=... HTTP/1.1"
+            const auto target = requestLine.fromFirstOccurrenceOf (" ", false, false).upToFirstOccurrenceOf (" ", false, false);
+            if (! target.startsWith ("/callback"))
             {
-                post ([this, token, mine, gen] {
-                    if (gen->load() == mine)
-                        finishSignIn (token);
-                });
-                return;
+                respond (*client, 404, "Not found");
+                continue; // (a browser asking for a favicon, say)
             }
-            const auto err = reply.json["error"].toString();
-            if (reply.status == 0 || err == "authorization_pending")
-                continue; // (the server may restart in development: keep waiting)
-            if (err == "slow_down")
+            const juce::URL url ("http://127.0.0.1" + target);
+            const auto names = url.getParameterNames(), values = url.getParameterValues();
+            auto param = [&] (const char* name) { return values[names.indexOf (name)]; };
+            if (param ("state") != state)
             {
-                interval += 5;
+                respond (*client, 400, pageHtml ("This sign-in isn't LYNX's", "Start it again from LYNX."));
                 continue;
             }
-            if (err == "access_denied")
-                return fail ("The sign-in was declined in the browser.");
-            if (err == "expired_token")
-                return fail ("The sign-in code expired: sign in again.");
-            const auto description = reply.json["error_description"].toString();
-            return fail ("The sign-in failed: " + (description.isNotEmpty() ? description : err));
+
+            // 4. the code (with the verifier only LYNX has) for a session token
+            const auto reply = request ("/api/desktop/token", object ({ { "code", param ("code") }, { "verifier", verifier } }));
+            const auto token = reply.json["token"].toString();
+            if (reply.status != 200 || token.isEmpty())
+            {
+                respond (*client, 200, pageHtml ("The sign-in didn't work", "Go back to LYNX and try again."));
+                return fail (reply.status == 0 ? notAnswering : reply.json["message"].toString().isNotEmpty() ? reply.json["message"].toString()
+                                                                                                                : juce::String ("The sign-in didn't work: try again."));
+            }
+            respond (*client, 200, pageHtml ("You're signed in", "You can close this tab and go back to LYNX."));
+            post ([this, token, mine, gen] {
+                if (gen->load() != mine)
+                    return;
+                finishSignIn (token);
+                juce::Process::makeForegroundProcess(); // (back to LYNX)
+            });
+            return;
         }
+        if (gen->load() == mine)
+            fail ("The sign-in timed out: try again.");
     });
 }
 
