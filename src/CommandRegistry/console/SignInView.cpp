@@ -248,26 +248,23 @@ void SignInView::resized()
             break;
     }
 
-    // the footer line: "Signed in as you@example.com  ·" then the Sign out link, centred together; a long address is
-    // shortened to fit (in its name, so the domain stays: "jovanmwesigw…@gmail.com")
+    // the footer line: "Signed in as jova...@gmail.com  ·" then the Sign out link, centred together. The address is
+    // always shortened to its first 4 characters and its domain, so it never crowds Sign out (a very narrow panel also
+    // shortens the domain).
     const auto font = textFont (theme::type::small);
     const auto widthOf = [&font] (const juce::String& s) { return juce::roundToInt (juce::GlyphArrangement::getStringWidth (font, s)) + 2; };
     const auto linkWidth = widthOf ("Sign out") + 6;
     const auto room = juce::jmax (0, getWidth() - 32 - linkWidth);
-    const auto ellipsis = juce::String::fromUTF8 ("\xe2\x80\xa6");
-    const auto line = [&] (const juce::String& email) { return "Signed in as " + email + "  " + juce::String::fromUTF8 ("\xc2\xb7"); };
+    const auto line = [] (const juce::String& email) { return "Signed in as " + email + "  " + juce::String::fromUTF8 ("\xc2\xb7"); };
     const auto email = Account::get().email();
-    auto name = email.upToLastOccurrenceOf ("@", false, false), domain = email.fromLastOccurrenceOf ("@", true, false);
-    footerLine = line (email);
-    while (widthOf (footerLine) > room && name.length() > 1)
-    {
-        name = name.dropLastCharacters (1);
-        footerLine = line (name + ellipsis + domain);
-    }
-    while (widthOf (footerLine) > room && domain.length() > 4) // (still too narrow: the domain's end goes too)
+    const auto name = email.upToLastOccurrenceOf ("@", false, false);
+    auto domain = email.fromLastOccurrenceOf ("@", true, false);
+    const auto shortName = name.length() > 4 ? name.substring (0, 4) + "..." : name;
+    footerLine = line (shortName + domain);
+    while (widthOf (footerLine) > room && domain.length() > 4)
     {
         domain = domain.dropLastCharacters (1);
-        footerLine = line (name + ellipsis + domain + ellipsis);
+        footerLine = line (shortName + domain + "...");
     }
     auto footer = getLocalBounds().removeFromBottom (44).withSizeKeepingCentre (juce::jmin (getWidth() - 32, widthOf (footerLine) + linkWidth), 22);
     footerTextArea = footer.removeFromLeft (juce::jmax (0, footer.getWidth() - linkWidth));
