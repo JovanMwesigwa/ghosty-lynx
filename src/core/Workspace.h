@@ -11,8 +11,8 @@
 
 namespace lynx::workspace
 {
-enum class Panel : int { playlist, channelRack, pianoRoll, mixer, browser };
-constexpr int panelCount = 5;
+enum class Panel : int { playlist, channelRack, pianoRoll, mixer, browser, console };
+constexpr int panelCount = 6;
 
 const char* panelId (Panel panel) noexcept; // "playlist", "channelRack"... (the saved-layout keys)
 std::optional<Panel> panelFromId (const std::string& id);

@@ -402,15 +402,19 @@ void PresetBar::mouseUp (const juce::MouseEvent& e)
 
 std::vector<PresetBar::Entry> PresetBar::entries() const
 {
-    std::vector<Entry> out;
-    auto& p = const_cast<juce::AudioPluginInstance&> (plugin);
+    return presetsOf (const_cast<juce::AudioPluginInstance&> (plugin));
+}
+
+std::vector<PresetEntry> presetsOf (juce::AudioPluginInstance& p)
+{
+    std::vector<PresetEntry> out;
     if (p.getNumPrograms() > 1)
         for (int i = 0; i < p.getNumPrograms(); ++i)
         {
             auto name = p.getProgramName (i);
             out.push_back ({ i, {}, name.isEmpty() ? tr ("Program {0}", { juce::String (i + 1) }) : name });
         }
-    for (const auto& f : userPresets (plugin.getName()))
+    for (const auto& f : userPresets (p.getName()))
         out.push_back ({ -1, f, f.getFileNameWithoutExtension() });
     return out;
 }

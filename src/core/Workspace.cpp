@@ -9,7 +9,7 @@ namespace lynx::workspace
 {
 namespace
 {
-const char* const ids[panelCount] = { "playlist", "channelRack", "pianoRoll", "mixer", "browser" };
+const char* const ids[panelCount] = { "playlist", "channelRack", "pianoRoll", "mixer", "browser", "console" };
 
 Rect clampInto (Rect r, int width, int height)
 {
@@ -86,10 +86,14 @@ Layout Layout::makeDefault (int width, int height)
     const auto rollHeight = tiledRoll >= pianoRollMinHeight ? tiledRoll : std::max (minHeight, h * 58 / 100);
     l[Panel::pianoRoll] = state ({ browserWidth + 2 * gap, rollTop, w - browserWidth - 4 * gap, rollHeight }, false);
 
+    // The Console (command bridge): hidden until called, a sidebar along the right edge when it is.
+    const auto consoleWidth = std::clamp (w * 26 / 100, minWidth, 420);
+    l[Panel::console] = state ({ w - consoleWidth, 0, consoleWidth, h }, false);
+
     for (auto& p : l.panels)
         p.bounds = clampInto (p.bounds, w, h);
 
-    l.order = { Panel::playlist, Panel::browser, Panel::mixer, Panel::pianoRoll, Panel::channelRack };
+    l.order = { Panel::playlist, Panel::browser, Panel::mixer, Panel::pianoRoll, Panel::console, Panel::channelRack };
     l.focused = Panel::channelRack;
     return l;
 }

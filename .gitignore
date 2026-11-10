@@ -15,3 +15,6 @@ __pycache__/
 *.o
 *.obj
 build-ctl/
+
+# local Debug build (bun run dev)
+/build-debug/

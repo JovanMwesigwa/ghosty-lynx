@@ -1,4 +1,5 @@
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "CommandRegistry/core/CommandBridge.h"
 #include "engine/FileSort.h"
 #include "platform/Paths.h"
 
@@ -1636,6 +1637,8 @@ public:
         lynx::videoview::install (*engine); // (Fruity Video Player channels: their sound tracks)
         startupTrace.mark ("audio engine + device");
         crashEngine = engine.get();
+        commandBridge = std::make_unique<lynx::commands::CommandBridge> ( // tempo.get & co over http://127.0.0.1:7878
+            *engine, [this]() -> lynx::MainComponent* { return mainWindow != nullptr ? &mainWindow->getContent() : nullptr; });
         lynx::crashreporter::watchAudioDevice (engine->getDeviceManager()); // (the session file names the device: crash reports)
         addDriverFileDeviceType();
 
@@ -1886,6 +1889,7 @@ public:
             return; // the copy that ran owns the session (its crash notes stay for the next start)
 
         lynx::crashguard::note ("closing");
+        commandBridge = nullptr; // (no command may reach the engine while it closes)
         lynx::shutdownPluginSandboxWorker();
         splash = nullptr;
         lynx::shutdownStemExtraction(); // (a separation in flight stops before its window and the engine go)
@@ -10393,6 +10397,7 @@ private:
 
     lynx::theme::LookAndFeel lookAndFeel;
     std::unique_ptr<lynx::AudioEngine> engine;
+    std::unique_ptr<lynx::commands::CommandBridge> commandBridge; // (after the engine: destroyed before it)
     std::unique_ptr<juce::XmlElement> savedDeviceState; // --rtstress: the user's device before this run's --type/--buffer
 
     // Hidden test mode --asiodll "<driver.dll>[|{CLSID}]" (REA round 97): an ASIO driver loaded straight from its file,

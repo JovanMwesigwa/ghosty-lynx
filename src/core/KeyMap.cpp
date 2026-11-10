@@ -68,6 +68,7 @@ std::vector<Action> makeActions()
         { "panel.channelRack", TR_NOOP ("Show, focus or hide the Channel Rack"), Context::global, { chord (f6) } },
         { "panel.pianoRoll", TR_NOOP ("Show, focus or hide the Piano Roll"), Context::global, { chord (f7) } },
         { "panel.browser", TR_NOOP ("Show, focus or hide the Browser"), Context::global, { chord (f8, alt) } },
+        { "panel.console", TR_NOOP ("Show, focus or hide Ghosty (LYNX's AI chat)"), Context::global, { chord ('J', ctrl) } },
         // FL's F8 (ShowPluginPickerAction, round 167o): opens the plugin picker, or closes it when it is open
         { "panel.quickAdd", TR_NOOP ("Quick-add palette: instruments and effects (press again to close)"), Context::global, {} },
         // FL's F8 (ShowPluginPickerAction, ShortCut 119): the Plugin picker view, again = closed (round 169k; the

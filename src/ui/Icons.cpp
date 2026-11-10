@@ -1,4 +1,5 @@
 #include "ui/Icons.h"
+#include "ui/GhostyLogo.h"
 
 #include <cmath>
 #include <map>
@@ -700,6 +701,12 @@ Shape make (Icon icon)
             polyline (st, { { 17.0f, 4.5f }, { 20.0f, 4.5f }, { 20.0f, 19.5f }, { 17.0f, 19.5f } });
             fi.addEllipse (8.0f, 8.0f, 8.0f, 8.0f);
             break;
+        case Icon::console: // Ghosty (the AI chat panel): its logo, the ghost with headphones
+        {
+            const auto& logo = ghosty::path();
+            fi.addPath (logo, logo.getTransformToScaleToFit ({ 2.5f, 2.0f, 19.0f, 20.0f }, true, juce::Justification::centred));
+            break;
+        }
     }
 
     return s;

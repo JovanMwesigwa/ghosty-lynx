@@ -377,7 +377,7 @@ public:
         if (edgesAt (p) != 0)
             h.text = tr ("Drag the edge to resize the panel");
         else if (p.y < Workspace::titleHeight)
-            h.text = title + ": " + (titleTooltip.isNotEmpty() ? titleTooltip + "   " : juce::String())
+            h.text = (title.isNotEmpty() ? title + ": " : juce::String()) + (titleTooltip.isNotEmpty() ? titleTooltip + "   " : juce::String())
                      + (owner.isDetached (panel) ? tr ("Docks back with the button on the right")
                                                  : tr ("Drag to move (Alt: no snapping), double-click to maximize"));
         return h;

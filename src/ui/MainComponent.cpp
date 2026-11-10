@@ -79,7 +79,7 @@ namespace
 {
 using workspace::Panel;
 
-constexpr Panel panelOrder[] = { Panel::playlist, Panel::channelRack, Panel::pianoRoll, Panel::mixer, Panel::browser };
+constexpr Panel panelOrder[] = { Panel::playlist, Panel::channelRack, Panel::pianoRoll, Panel::mixer, Panel::browser, Panel::console };
 
 const char* panelAction (Panel p)
 {
@@ -90,6 +90,7 @@ const char* panelAction (Panel p)
         case Panel::pianoRoll: return "panel.pianoRoll";
         case Panel::mixer: return "panel.mixer";
         case Panel::browser: return "panel.browser";
+        case Panel::console: return "panel.console";
     }
     return "";
 }
@@ -103,6 +104,7 @@ juce::String panelName (Panel p)
         case Panel::pianoRoll: return "Piano Roll";
         case Panel::mixer: return "Mixer";
         case Panel::browser: return "Browser";
+        case Panel::console: return "Ghosty"; // (LYNX's AI chat: ui/GhostyLogo.h)
     }
     return {};
 }
@@ -370,6 +372,7 @@ MainComponent::MainComponent (AudioEngine& e, bool restoreUserSettings)
     workspace.setContent (Panel::pianoRoll, pianoRoll, "Piano Roll", Icon::pianoRoll);
     workspace.setContent (Panel::mixer, mixer, "Mixer", Icon::mixer);
     workspace.setContent (Panel::browser, browser, "Browser", Icon::browser);
+    workspace.setContent (Panel::console, console, {}, Icon::console); // (no title: the Console's header shows the plan)
     workspace.setTitleTooltip (Panel::channelRack, tr ("Shift+wheel here changes the pattern"));
     // FL keeps the channel filter, the global swing and the graph editor switch in the rack's title bar
     rackFilterBox.text = rack.filterName();
@@ -534,6 +537,8 @@ MainComponent::MainComponent (AudioEngine& e, bool restoreUserSettings)
     {
         addAndMakeVisible (b);
         b.setMouseClickGrabsKeyboardFocus (false);
+        if (&b == &panelButtons[(std::size_t) Panel::console])
+            b.setVisible (false); // (the toolbar's windows block is 3 x 2 and full: the Console opens from View and Ctrl+J)
         b.setWantsKeyboardFocus (false);
     }
 
@@ -1426,6 +1431,7 @@ keys::Context MainComponent::focusContext() const
         case Panel::pianoRoll: return keys::Context::pianoRoll;
         case Panel::mixer: return keys::Context::mixer;
         case Panel::browser: return keys::Context::browser;
+        case Panel::console: return keys::Context::global; // (its line takes the typing; the rest stays global)
     }
     return keys::Context::global;
 }
@@ -1555,6 +1561,7 @@ bool MainComponent::runAction (const std::string& id)
             pianoRoll.scrollToNotes();
     }
     else if (is ("panel.browser")) togglePanel (Panel::browser);
+    else if (is ("panel.console")) togglePanel (Panel::console);
     else if (is ("panel.mixer")) togglePanel (Panel::mixer);
     else if (is ("panel.maximisePlaylist"))
     {
@@ -3853,7 +3860,9 @@ void MainComponent::setControlHints()
                                 TR_NOOP ("the instruments and their step sequencer"),
                                 TR_NOOP ("the notes of the selected channel in the current pattern"),
                                 TR_NOOP ("inserts, effects and routing"),
-                                TR_NOOP ("samples, presets, plugins and projects to drag in") };
+                                TR_NOOP ("samples, presets, plugins and projects to drag in"),
+                                TR_NOOP ("LYNX's AI: tell it what you want, in your own words") };
+    static_assert (std::size (panelHelp) == (std::size_t) workspace::panelCount, "one help text per panel");
     for (int i = 0; i < workspace::panelCount; ++i)
         ui::setHint (panelButtons[(std::size_t) i],
                      with (panelName ((Panel) i) + ": " + tr (panelHelp[i]) + "  " + tr ("[LMB] show, focus or hide  [RMB] maximized"),
@@ -5417,26 +5426,56 @@ void MainComponent::exportMidiFile()
                               });
 }
 
+juce::File MainComponent::writeProject (juce::File file, juce::String& error)
+{
+    if (! file.hasFileExtension (ProjectFile::extension))
+        file = file.withFileExtension (ProjectFile::extension);
+
+    engine.capturePluginStates(); // plugin state lives in the plugins; copy it before saving
+    keepOverwrittenCopy (file);   // the version this save replaces goes to the backup folder (like FL)
+
+    if (! ProjectFile::save (engine.getSong(), file, error))
+        return {};
+
+    engine.markSaved();
+    rememberRecent (file);
+    currentFile = file;
+    projectName = file.getFileNameWithoutExtension();
+    importedSuffix = {};
+    updateTitle();
+    return file;
+}
+
+juce::File MainComponent::saveFromCommand (juce::File file, juce::String& error)
+{
+    if (file == juce::File())
+    {
+        // File › Save: the project's own file (one opened from the backup folder has none worth writing to)
+        if (currentFile == juce::File() || currentFile.isAChildOf (autosaveFolder()))
+        {
+            error = "this project hasn't been saved yet: give it a file, e.g. --file ~/Music/LYNX/MySong.lynx";
+            return {};
+        }
+        file = currentFile;
+    }
+    if (file.isAChildOf (autosaveFolder()))
+    {
+        error = "that's LYNX's backup folder, where old backups get deleted: save somewhere else";
+        return {};
+    }
+    if (! file.getParentDirectory().createDirectory())
+    {
+        error = "couldn't create the folder " + file.getParentDirectory().getFullPathName();
+        return {};
+    }
+    return writeProject (file, error);
+}
+
 void MainComponent::save (bool askForFile)
 {
     auto write = [this] (juce::File file) {
-        if (! file.hasFileExtension (ProjectFile::extension))
-            file = file.withFileExtension (ProjectFile::extension);
-
         juce::String error;
-        engine.capturePluginStates(); // plugin state lives in the plugins; copy it before saving
-        keepOverwrittenCopy (file);   // the version this save replaces goes to the backup folder (like FL)
-
-        if (ProjectFile::save (engine.getSong(), file, error))
-        {
-            engine.markSaved();
-            rememberRecent (file);
-            currentFile = file;
-            projectName = file.getFileNameWithoutExtension();
-            importedSuffix = {};
-            updateTitle();
-        }
-        else
+        if (writeProject (file, error) == juce::File())
             juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, tr ("Could not save"), error);
     };
 

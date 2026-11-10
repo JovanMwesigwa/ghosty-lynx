@@ -434,9 +434,41 @@ if(LYNX_BUILD_APP)
         src/ui/ThemeSettings.cpp
         src/ui/ColourPicker.cpp
         src/ui/TrackIcons.cpp
+        src/ui/GhostyLogo.cpp
         src/ui/Icons.cpp
         src/ui/I18n.cpp
         src/ui/EditorTools.cpp)
+
+    # command bridge: drive the running app from outside (curl localhost:7878/tempo.get; src/CommandRegistry/README.md)
+    target_sources(LYNX PRIVATE
+        # the framework
+        src/CommandRegistry/core/CommandBridge.cpp
+        src/CommandRegistry/core/CommandLine.cpp
+        src/CommandRegistry/core/CommandModule.cpp
+        src/CommandRegistry/core/CommandRegistry.cpp
+        src/CommandRegistry/core/CommandServer.cpp
+        # in-app client: the Console workspace panel
+        src/CommandRegistry/console/Account.cpp
+        src/CommandRegistry/console/AgentClient.cpp
+        src/CommandRegistry/console/AiSettings.cpp
+        src/CommandRegistry/console/ConsolePanel.cpp
+        src/CommandRegistry/console/Keychain.cpp
+        src/CommandRegistry/console/SettingsView.cpp
+        src/CommandRegistry/console/SignInView.cpp
+        # helpers the modules share (find a pattern / channel by name or number)
+        src/CommandRegistry/shared/Catalog.cpp
+        src/CommandRegistry/shared/Knobs.cpp
+        src/CommandRegistry/shared/Lookup.cpp
+        # one module per feature
+        src/CommandRegistry/channel/ChannelModule.cpp
+        src/CommandRegistry/mixer/MixerModule.cpp
+        src/CommandRegistry/pattern/PatternModule.cpp
+        src/CommandRegistry/playlist/PlaylistModule.cpp
+        src/CommandRegistry/project/ProjectModule.cpp
+        src/CommandRegistry/settings/SettingsModule.cpp
+        src/CommandRegistry/account/AccountModule.cpp
+        src/CommandRegistry/tempo/TempoModule.cpp
+        src/CommandRegistry/transport/TransportModule.cpp)
 
     # workflow shell: workspace desktop, control contract, dialogs
     target_sources(LYNX PRIVATE

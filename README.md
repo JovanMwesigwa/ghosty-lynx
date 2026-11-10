@@ -4,6 +4,8 @@
 
 <h1 align="center">LYNX SHARE</h1>
 
+> **Ghosty LYNX**: this is a modified version of LYNX SHARE with Ghosty, an AI music assistant, built in. See [MODIFICATIONS.md](MODIFICATIONS.md) for what changed. Downloads: https://officialghosty.app/download
+
 <p align="center"><strong>A lightweight DAW with the FL Studio workflow.</strong><br>
 Channel Rack, Piano Roll, Playlist and Mixer in C++20 + JUCE 8, built to run well on any PC.<br>
 Windows, macOS and Linux.</p>

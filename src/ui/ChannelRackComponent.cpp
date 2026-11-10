@@ -143,6 +143,11 @@ juce::String channelName (const Song& song, int row)
 }
 } // namespace
 
+juce::String instrumentDisplayName (InstrumentKind kind)
+{
+    return instrumentName (kind);
+}
+
 bool ChannelRackComponent::keepEditorsOpen = false;
 bool ChannelRackComponent::selectFirstChannelWithNotes = false;
 bool ChannelRackComponent::muteRemovedSteps = false;
@@ -1326,6 +1331,31 @@ void ChannelRackComponent::deleteSelected()
     selectRows ({ row }, row);
 }
 
+bool ChannelRackComponent::replaceInstrument (int channel, ChannelDef generator)
+{
+    if (channel < 0 || channel >= (int) engine.getSong().channels.size())
+        return false;
+
+    // the channel menu's Replace › without opening the new instrument's window (FL; core replaceGenerator keeps its
+    // place, notes, insert, levels, colour, group)
+    closeEditor (channel);
+    engine.editSong ([channel, &generator] (Song& s) { replaceGenerator (s, channel, std::move (generator)); });
+    selectionAnchor = channel;
+    selectRows ({ channel }, channel);
+    return true;
+}
+
+bool ChannelRackComponent::deleteChannel (int channel)
+{
+    if (channel < 0 || channel >= (int) engine.getSong().channels.size() || engine.getSong().channels.size() <= 1)
+        return false; // (at least one channel stays)
+
+    closeEditor (channel);
+    engine.editSong ([channel] (Song& s) { s.removeChannel (channel); });
+    openEditorRow = -1;
+    return true;
+}
+
 void ChannelRackComponent::sendSelectedToInserts()
 {
     const auto rows = engine.getSelectedChannels();
@@ -2394,11 +2424,7 @@ juce::PopupMenu ChannelRackComponent::buildChannelMenu (int channel)
     if (selected > 1)
         menu.addItem (theme::mnemonic (tr ("Delete {0} channels", { juce::String (selected) }), 'D') + "\tAlt+Del", selected < count, false, [this] { deleteSelected(); });
     else
-        menu.addItem (theme::mnemonic (tr ("Delete..."), 'D') + "\tAlt+Del", count > 1, false, [this, channel] {
-            closeEditor (channel);
-            engine.editSong ([channel] (Song& s) { s.removeChannel (channel); });
-            openEditorRow = -1;
-        });
+        menu.addItem (theme::mnemonic (tr ("Delete..."), 'D') + "\tAlt+Del", count > 1, false, [this, channel] { deleteChannel (channel); });
 
     // LYNX: the channel's settings windows and its arpeggiator
     menu.addSeparator();

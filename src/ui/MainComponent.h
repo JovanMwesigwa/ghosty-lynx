@@ -6,6 +6,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "CommandRegistry/console/ConsolePanel.h"
 #include "core/KeyMap.h"
 #include "core/Performance.h"
 #include "ui/UiTrace.h"
@@ -60,6 +61,27 @@ public:
 
     // Asks "save changes?" if there are any; `then` runs unless the user cancels.
     void confirmDiscard (std::function<void()> then);
+
+    // Command bridge (src/CommandRegistry): the New project window's last step, without the window (no "save
+    // changes?" prompt either: the caller decides), and the file Save writes to (none until the project is saved).
+    void startNewProjectFromCommand (Song song, const juce::File& file) { startNewProject (std::move (song), file); }
+    const juce::File& getCurrentFile() const noexcept { return currentFile; }
+    // ...and the Channel Rack's own add / delete (new row selected, a free mixer insert; editors closed on delete).
+    int addChannelFromCommand (ChannelDef channel) { return rack.addChannel (std::move (channel), false); }
+    bool deleteChannelFromCommand (int channel) { return rack.deleteChannel (channel); }
+    bool replaceInstrumentFromCommand (int channel, ChannelDef generator) { return rack.replaceInstrument (channel, std::move (generator)); }
+    // ...and File › Save (`file` empty: the project's own file) / Save as (`file` given). No dialogs: the file written,
+    // or {} with `error` (never saved and no file given, the backup folder, a folder it can't create, a write error).
+    juce::File saveFromCommand (juce::File file, juce::String& error);
+    // ...and File › Recent projects (most recent first; files may have moved since).
+    const juce::RecentlyOpenedFilesList& getRecentFiles() const noexcept { return recent; }
+    // ...and the transport's Play (only when stopped: Space would stop it) and Stop (back to the very start).
+    void playFromCommand()
+    {
+        if (! engine.getTransport().playing.load())
+            playStop();
+    }
+    void stopFromCommand() { stopAndRewind (true); }
     // The main window came up (issue #62): the detached panels restored with the layout go to their saved place, above it.
     void restoreDetachedWindows() { workspace.restoreDetachedWindows(); }
 
@@ -286,6 +308,9 @@ private:
     void startLiveFromCommandLine();     // --live-host code.txt / --live-join CODE|@code.txt (scripted GUI checks)
     void collectSamples();
     void keepOverwrittenCopy (const juce::File& file); // the previous file of a save, kept in the backup folder
+    // Save's last step (File › Save and Save as, the command bridge): writes the song to `file` (.lynx added), keeps
+    // the version it replaces, marks the project saved and makes `file` its file. The file written, or {} with `error`.
+    juce::File writeProject (juce::File file, juce::String& error);
     void rotateBackups (const juce::String& stem);
     // unused recordings (REA round 134, FL's "Delete unused recorded files" / "Delete unused files and save project")
     void offerToDeleteUnusedRecordings (bool keepsCurrentState, std::function<void()> then);
@@ -477,7 +502,8 @@ private:
                                                                  IconButton { "rackPanel", Icon::channelRack },
                                                                  IconButton { "pianoRollPanel", Icon::pianoRoll },
                                                                  IconButton { "mixerPanel", Icon::mixer },
-                                                                 IconButton { "browserPanel", Icon::browser } };
+                                                                 IconButton { "browserPanel", Icon::browser },
+                                                                 IconButton { "consolePanel", Icon::console } };
     IconButton pluginPickerButton { "pluginPicker", Icon::pluginPicker };
     GlobalGridBox gridBox; // global grid of the editors (see ui/EditorTools.h)
     // FL's Snap panel: the magnet before the snap box (TToolbarForm.SnapLabel, a click toggles the snap like Backspace;
@@ -522,6 +548,7 @@ private:
     PlaylistArea playlistArea { picker, playlist };
     MixerComponent mixer;
     BrowserComponent browser;
+    commands::ConsolePanel console; // the command bridge's Console (src/CommandRegistry/console)
     Workspace workspace; // after the panels' contents: it is destroyed first
     updater::UpdateBar updateBar; // "LYNX SHARE x.y.z is available" under the toolbar (round 166b)
     std::unique_ptr<juce::Component> danceStage; // the dance channels' dancers over the workspace (ui/DanceView.h, round 165e)

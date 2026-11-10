@@ -33,6 +33,10 @@ juce::String flEngineName (const natives::InstrumentEngine& e);
 //    dragging; double-click on the route box opens the Mixer at that insert
 //  - everything under the mouse is highlighted and described in the hint bar
 //  - dropping an audio file onto a row turns the channel into a sampler
+
+// An instrument's English name, as new channels are named after it ("Sampler", "Fruit Kick", "Sytrus"...).
+juce::String instrumentDisplayName (InstrumentKind kind);
+
 class ChannelRackComponent final : public juce::Component,
                                    public juce::FileDragAndDropTarget,
                                    public juce::DragAndDropTarget,
@@ -85,6 +89,10 @@ public:
     bool moveSelected (int delta);
     void cloneSelected();
     void deleteSelected();
+    // The channel menu's Delete: closes its editor, removes it with its notes (one undo step). False for the last one.
+    bool deleteChannel (int channel);
+    // The channel menu's Replace ›: a new instrument on the channel (its notes, insert and levels stay). False if no such row.
+    bool replaceInstrument (int channel, ChannelDef generator);
     // FL's Cut / Copy / Paste of the selected channels' steps and notes in the current pattern (Ctrl+X / C / V)
     void cutSelected();
     void copySelected();

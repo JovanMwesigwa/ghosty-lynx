@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <optional>
+#include <vector>
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -18,6 +19,16 @@ juce::File presetsRoot();                               // <settings>/Presets/Pl
 juce::File folderFor (const juce::String& pluginName);  // that plugin's folder (not created)
 bool isPresetFile (const juce::File& file);             // .lynxpreset (of a plugin), .fxp, .fxb, .vstpreset
 juce::Array<juce::File> userPresets (const juce::String& pluginName); // sorted by name
+
+// Every preset the plugin window's ◀ ▶ steps through, in its order: the plugin's own programs (when it shares more than
+// one), then the user's preset files for it (userPresets).
+struct PresetEntry
+{
+    int program = -1; // a factory program, or
+    juce::File file;  // a user preset
+    juce::String name;
+};
+std::vector<PresetEntry> presetsOf (juce::AudioPluginInstance& plugin);
 
 // The plugin a .lynxpreset was saved from (nullopt: not a plugin preset).
 std::optional<pluginpresets::Preset> readLynxPreset (const juce::File& file);
@@ -48,12 +59,7 @@ public:
     int preferredWidth() const { return 250; }
 
 private:
-    struct Entry
-    {
-        int program = -1; // a factory program, or
-        juce::File file;  // a user preset
-        juce::String name;
-    };
+    using Entry = PresetEntry;
     std::vector<Entry> entries() const;
     void step (int delta);
     void apply (const Entry& entry);
