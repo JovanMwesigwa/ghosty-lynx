@@ -119,6 +119,14 @@ public:
     // The Browser's "Send to the Playlist as an audio clip": at the playhead (song mode) or the start, on the
     // first track that is free there; an audio-clip channel of the same file is reused.
     void addAudioClipAtPlayhead (const juce::File& file);
+    // An audio clip of `file` at `start` on `track` (one undo step), as a file dropped on the Playlist: `reuse` = an
+    // existing audio-clip channel of the same file plays it instead of a new one; `adjust` changes the clip before it's
+    // placed (gain, fades: still the same undo step). Its index in Song::playlist, -1 when the file can't be read.
+    // (Also the command bridge's playlist.audio.add.)
+    static int addAudioClip (AudioEngine& engine, const juce::File& file, std::int64_t start, int track, bool reuse,
+                             const std::function<void (Clip&)>& adjust = {});
+    // How long a clip of `file` is at the song's tempo, in ticks (0 when it can't be read)
+    static std::int64_t audioClipTicks (AudioEngine& engine, const juce::File& file);
 
     // For snapshots: the tool in use and a time selection over [fromBar, toBar).
     void setToolForSnapshot (EditTool tool) { tools.setTool (tool); }

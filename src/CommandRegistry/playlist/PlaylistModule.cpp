@@ -8,6 +8,8 @@
 #include "core/PlaylistTrackOps.h"
 #include "core/QuickRender.h"
 #include "core/Song.h"
+#include "engine/AudioEngine.h"
+#include "ui/PlaylistComponent.h"
 
 #include <algorithm>
 #include <cmath>
@@ -343,7 +345,101 @@ void PlaylistModule::define()
                                                         { "to", position (now, start + (std::int64_t) copies * length) } }));
               });
 
-    mutation ("clip.delete", "Remove a track's clips: all of them, or the ones starting in --bar, or of --pattern",
+    mutation ("audio.add", "Place a sample on the arrangement as an audio clip (a crash, an impact, a riser...): at a bar or a section marker; "
+                           "--ending lines its end up there instead (a swell into the drop)",
+              { Arg::text ("sample", "the sample: a path from sample search (absolute or ~/...)"),
+                Arg::number ("bar", "the bar, from 1 (or --at)", 1, 9999).optional(),
+                Arg::number ("beat", "the beat in that bar, from 1 (default 1; 2.5 = halfway through beat 2)", 1, 17).optional(),
+                Arg::text ("at", "a section marker's name instead of --bar: its start (playlist markers lists them)").optional(),
+                Arg::boolean ("ending", "the sample ends at that point instead of starting there (risers, reverse cymbals, swells)").optional(),
+                Arg::number ("track", trackArgHelp + "; default: the first track with room that holds no patterns", 1, perf::maxTracks).optional(),
+                Arg::number ("gain", "the clip's volume in dB (default 0)", -60, 24).optional(),
+                Arg::number ("fadein", "fade in, in beats (default none)", 0, 256).optional(),
+                Arg::number ("fadeout", "fade out, in beats (default none)", 0, 256).optional() },
+              [] (Context& ctx, const Args& args) {
+                  const auto& song = ctx.song();
+
+                  // the sample (read the way a file dropped on the Playlist is)
+                  const auto file = pathFromArg (args.text ("sample"));
+                  if (file == juce::File())
+                      return Result::failure ("--sample must be an absolute path or start with ~/ (got \"" + args.text ("sample") + "\")");
+                  if (! file.existsAsFile())
+                      return Result::failure ("no file at " + file.getFullPathName() + " (sample search finds samples)");
+                  const auto length = PlaylistComponent::audioClipTicks (ctx.engine, file);
+                  if (length <= 0)
+                      return Result::failure ("couldn't read " + file.getFileName() + " as audio (WAV, AIFF, FLAC, OGG, MP3...)");
+
+                  // where: a bar (and beat), or a section marker
+                  std::int64_t point = 0;
+                  if (args.has ("at"))
+                  {
+                      if (args.has ("bar"))
+                          return Result::failure ("give --bar or --at, not both");
+                      const auto wanted = args.text ("at").trim();
+                      const Marker* found = nullptr;
+                      for (const auto& m : song.markers())
+                          if (! m.isSignature() && juce::String::fromUTF8 (m.name.c_str()).trim().equalsIgnoreCase (wanted))
+                              found = &m;
+                      if (found == nullptr)
+                          return Result::failure ("no section marker named \"" + wanted + "\" (playlist markers lists them; playlist marker add makes one)");
+                      point = found->tick;
+                  }
+                  else if (args.has ("bar"))
+                  {
+                      point = barStartTick (song, (int) args.number ("bar"));
+                  }
+                  else
+                  {
+                      return Result::failure ("say where: --bar 17 (and --beat), or --at Chorus (a section marker)");
+                  }
+                  if (args.has ("beat"))
+                      point += (std::int64_t) std::llround ((args.number ("beat") - 1.0) * ppq);
+
+                  const auto ending = args.boolean ("ending");
+                  if (ending && point - length < 0)
+                      return Result::failure (file.getFileName() + " is longer than everything before that point: it would have to start before bar 1");
+                  const auto start = ending ? point - length : point;
+
+                  // which track: the one given, or the first with nothing where the clip goes
+                  int track = 0;
+                  if (args.has ("track"))
+                  {
+                      track = (int) args.number ("track") - 1;
+                  }
+                  else
+                  {
+                      // (not a lane of patterns or automation, even where it's empty: audio goes on audio lanes)
+                      for (;; ++track)
+                      {
+                          const auto busy = std::any_of (song.playlist.begin(), song.playlist.end(), [&] (const Clip& c) {
+                              return c.track == track && (c.kind != ClipKind::audio || (c.start < start + length && c.end() > start));
+                          });
+                          if (! busy)
+                              break;
+                      }
+                  }
+
+                  const auto gain = (float) juce::Decibels::decibelsToGain (args.number ("gain", 0.0), -96.0);
+                  const auto fadeIn = (std::int64_t) std::llround (args.number ("fadein", 0.0) * ppq);
+                  const auto fadeOut = (std::int64_t) std::llround (args.number ("fadeout", 0.0) * ppq);
+                  const auto index = PlaylistComponent::addAudioClip (ctx.engine, file, start, track, true, [&] (Clip& c) {
+                      c.gain = gain;
+                      c.fadeIn = std::min (fadeIn, c.length);
+                      c.fadeOut = std::min (fadeOut, c.length);
+                  });
+                  if (index < 0)
+                      return Result::failure ("the Playlist couldn't add " + file.getFileName());
+
+                  const auto& now = ctx.song();
+                  auto result = describeClip (now, index);
+                  auto* o = result.getDynamicObject();
+                  o->setProperty ("track", track + 1);
+                  o->setProperty ("trackName", trackName (now, track));
+                  o->setProperty ("sample", file.getFullPathName());
+                  return Result::success (result);
+              });
+
+    mutation ("clip.delete", "Remove a track's clips (pattern and audio): all of them, or the ones starting in --bar, or of --pattern",
               { Arg::number ("track", trackArgHelp, 1, perf::maxTracks),
                 Arg::number ("bar", "only the clips starting in this bar", 1, 9999).optional(),
                 Arg::text ("pattern", "only this pattern's clips (its name or number)").optional() },
@@ -447,6 +543,7 @@ void PlaylistModule::define()
                 { "track", "playlist track --track 1" },
                 { "track.set", "playlist track set --track 1 --name Drums --colour \"#d9534f\"" },
                 { "clip.add", "playlist clip add --track 1 --pattern Eastside --bar 5 --repeat 8" },
+                { "audio.add", "playlist audio add --sample \"~/Samples/Crash 01.wav\" --at Chorus" },
                 { "clip.delete", "playlist clip delete --track 1 --bar 5" },
                 { "clear", "playlist clear --markers" },
                 { "markers", "playlist markers" },

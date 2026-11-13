@@ -78,7 +78,7 @@ const std::vector<KindRule>& kindRules()
         { "kick", { "kick", "bassdrum", "bass drum", "bass_drum" }, { "bd", "kik", "kicks" } },
         { "808", { "808" }, { "sub", "subs", "subbass" } },
         { "vocal", { "vocal", "vox", "voice", "chant", "adlib" }, {} },
-        { "fx", { "riser", "sweep", "impact", "downlifter", "uplifter", "whoosh", "reverse" }, { "fx", "sfx", "noise" } },
+        { "fx", { "riser", "rise", "swell", "sweep", "impact", "downlifter", "uplifter", "whoosh", "reverse", "transition" }, { "fx", "sfx", "noise" } },
     };
     return rules;
 }

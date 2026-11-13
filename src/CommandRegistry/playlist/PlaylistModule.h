@@ -9,6 +9,12 @@
 //                                        --muted true|false   --height 20..160 (38 = default)
 //                                        --grouped true|false (with the track above)   --collapsed true|false (its group)
 
+//   playlist.audio.add --sample <path> (--bar 17 [--beat 3] | --at Chorus) [--ending] [--track N] [--gain -6]
+//                      [--fadein 1] [--fadeout 2]
+//                                      a sample as an audio clip (a file dropped on the Playlist: one audio-clip channel
+//                                      per file, reused); --ending ends it there (a riser into the drop); no --track: the
+//                                      first track with room. playlist.clip.delete --track N --bar B removes it again
+
 #include "CommandRegistry/core/CommandModule.h"
 
 namespace lynx::commands

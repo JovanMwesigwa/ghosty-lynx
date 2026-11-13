@@ -5606,27 +5606,33 @@ bool PlaylistComponent::isInterestedInFileDrag (const juce::StringArray& files)
     return false;
 }
 
-namespace
-{
-// An audio clip of `file` at `start` on `track` (one undo step); `reuse`: an existing audio-clip channel of the same
-// file plays it instead of a new one. False when the file can't be read.
-bool addAudioClip (AudioEngine& engine, const juce::File& file, std::int64_t start, int track, bool reuse)
+std::int64_t PlaylistComponent::audioClipTicks (AudioEngine& engine, const juce::File& file)
 {
     if (! SampleLibrary::isSampleFile (file))
-        return false;
+        return 0;
 
     const auto data = engine.getSampleLibrary().load (file.getFullPathName());
 
     if (data == nullptr)
-        return false;
+        return 0;
 
     // audio length converted to ticks at the current BPM
     const auto seconds = (double) data->frames() / data->sampleRate;
-    const auto length = juce::jmax<std::int64_t> (ppq / 4, (std::int64_t) (seconds * engine.getSong().bpm / 60.0 * ppq));
+    return juce::jmax<std::int64_t> (ppq / 4, (std::int64_t) (seconds * engine.getSong().bpm / 60.0 * ppq));
+}
+
+int PlaylistComponent::addAudioClip (AudioEngine& engine, const juce::File& file, std::int64_t start, int track, bool reuse,
+                                     const std::function<void (Clip&)>& adjust)
+{
+    const auto length = audioClipTicks (engine, file);
+    if (length <= 0)
+        return -1;
+
     const auto path = file.getFullPathName().toStdString();
     const auto name = file.getFileNameWithoutExtension().toStdString();
 
-    engine.editSong ([=] (Song& s) {
+    int index = -1;
+    engine.editSong ([&] (Song& s) {
         int channel = -1;
         if (reuse)
             for (int c = 0; c < (int) s.channels.size(); ++c)
@@ -5652,13 +5658,15 @@ bool addAudioClip (AudioEngine& engine, const juce::File& file, std::int64_t sta
         clip.track = track;
         clip.start = start;
         clip.length = length;
+        if (adjust)
+            adjust (clip);
         s.playlist.push_back (clip);
-        trackmodes::followAudioTracks (s, { (int) s.playlist.size() - 1 }); // (a reused channel)
+        index = (int) s.playlist.size() - 1;
+        trackmodes::followAudioTracks (s, { index }); // (a reused channel)
         s.mode = PlayMode::song;
     });
-    return true;
+    return index;
 }
-} // namespace
 
 void PlaylistComponent::filesDropped (const juce::StringArray& files, int x, int y)
 {
@@ -5666,7 +5674,7 @@ void PlaylistComponent::filesDropped (const juce::StringArray& files, int x, int
     auto track = yToTrack (y);
 
     for (const auto& f : files)
-        if (addAudioClip (engine, juce::File (f), start, track, false))
+        if (addAudioClip (engine, juce::File (f), start, track, false) >= 0)
             ++track; // multiple files: one below the other
 }
 
