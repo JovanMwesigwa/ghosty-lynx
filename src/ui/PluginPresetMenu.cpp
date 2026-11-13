@@ -182,12 +182,12 @@ juce::File folderFor (const juce::String& pluginName)
 
 bool isPresetFile (const juce::File& file)
 {
-    return file.hasFileExtension ("lynxpreset;fxp;fxb;vstpreset");
+    return file.hasFileExtension ("lynxpreset;fxp;fxb;vstpreset;aupreset");
 }
 
 namespace
 {
-const char* presetWildcard = "*.lynxpreset;*.fxp;*.fxb;*.vstpreset";
+const char* presetWildcard = "*.lynxpreset;*.fxp;*.fxb;*.vstpreset;*.aupreset";
 
 juce::File libraryFoldersFile()
 {
@@ -291,6 +291,17 @@ bool load (juce::AudioPluginInstance& plugin, const juce::File& file, juce::Stri
             error = vst3 ? tr ("The plugin did not accept this preset (saved by another plugin?).")
                          : tr ("Only VST3 plugins running inside LYNX SHARE read .vstpreset files.");
         return ok;
+    }
+    if (file.hasFileExtension ("aupreset"))
+    {
+        // an Audio Unit preset is the plugin's ClassInfo property list: what JUCE's AU host reads as its state
+        if (plugin.getPluginDescription().pluginFormatName != "AudioUnit")
+        {
+            error = tr ("Only Audio Unit plugins read .aupreset files.");
+            return false;
+        }
+        plugin.setStateInformation (data.getData(), (int) data.getSize());
+        return true;
     }
     error = tr ("Unknown preset format.");
     return false;
@@ -468,10 +479,60 @@ std::vector<PresetBar::Entry> PresetBar::entries() const
     return presetsOf (const_cast<juce::AudioPluginInstance&> (plugin));
 }
 
+namespace
+{
+// Program lists that hold no sounds (MeldaProduction's "0" … "127", "Default", "Init"): not offered as presets
+bool onlyPlaceholderPrograms (juce::AudioPluginInstance& p)
+{
+    for (int i = 0; i < p.getNumPrograms(); ++i)
+    {
+        const auto name = p.getProgramName (i).trim();
+        const auto placeholder = name.isEmpty() || name.containsOnly ("0123456789") || name.equalsIgnoreCase ("default")
+                              || name.equalsIgnoreCase ("init") || name.startsWithIgnoreCase ("program ") || name.equalsIgnoreCase ("untitled");
+        if (! placeholder)
+            return false;
+    }
+    return true;
+}
+
+// Where VST3 and Audio Unit presets live by convention: <presets>/<maker>/<plugin>/ (the user's and the system's)
+juce::Array<juce::File> standardPresetFolders (juce::AudioPluginInstance& p)
+{
+    const auto& d = p.getPluginDescription();
+    juce::Array<juce::File> roots;
+   #if JUCE_MAC
+    roots.add (juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory).getChildFile ("Audio/Presets"));
+    roots.add (juce::File ("/Library/Audio/Presets"));
+   #elif JUCE_WINDOWS
+    roots.add (juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("VST3 Presets"));
+    roots.add (juce::File::getSpecialLocation (juce::File::commonApplicationDataDirectory).getChildFile ("VST3 Presets"));
+   #else
+    roots.add (juce::File::getSpecialLocation (juce::File::userHomeDirectory).getChildFile (".vst3/presets"));
+   #endif
+    juce::Array<juce::File> folders;
+    if (d.manufacturerName.isNotEmpty())
+        for (const auto& r : roots)
+            if (const auto f = r.getChildFile (d.manufacturerName).getChildFile (p.getName()); f.isDirectory())
+                folders.add (f);
+    return folders;
+}
+
+// Whether this plugin can read a preset file of this kind (its format's own files; LYNX's and .fxp for any)
+bool readsPresetFile (juce::AudioPluginInstance& p, const juce::File& f)
+{
+    const auto format = p.getPluginDescription().pluginFormatName;
+    if (f.hasFileExtension ("vstpreset"))
+        return format == "VST3";
+    if (f.hasFileExtension ("aupreset"))
+        return format == "AudioUnit";
+    return true;
+}
+} // namespace
+
 std::vector<PresetEntry> presetsOf (juce::AudioPluginInstance& p)
 {
     std::vector<PresetEntry> out;
-    if (p.getNumPrograms() > 1)
+    if (p.getNumPrograms() > 1 && ! onlyPlaceholderPrograms (p))
         for (int i = 0; i < p.getNumPrograms(); ++i)
         {
             auto name = p.getProgramName (i);
@@ -484,6 +545,11 @@ std::vector<PresetEntry> presetsOf (juce::AudioPluginInstance& p)
         const auto group = f.getParentDirectory() == own ? juce::String() : f.getParentDirectory().getFileName();
         out.push_back ({ -1, f, f.getFileNameWithoutExtension(), group });
     }
+    // the presets in the system's places for this plugin (found without adding a folder)
+    for (const auto& folder : standardPresetFolders (p))
+        for (const auto& f : libraryPresets (folder))
+            if (readsPresetFile (p, f) && std::none_of (out.begin(), out.end(), [&f] (const PresetEntry& e) { return e.file == f; }))
+                out.push_back ({ -1, f, f.getFileNameWithoutExtension(), f.getParentDirectory().getFileName() });
     return out;
 }
 

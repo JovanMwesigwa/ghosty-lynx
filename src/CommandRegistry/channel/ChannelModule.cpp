@@ -619,6 +619,42 @@ void ChannelModule::define()
                return Result::success (result);
            });
 
+    action ("preset.save", "Save the sound a channel's plugin has now as a preset (works for any plugin: pick a sound in its own window, then save it "
+                           "here to find and load it by name later)",
+            { Arg::text ("channel", "its number or name"),
+              Arg::text ("name", "the preset's name"),
+              Arg::boolean ("replace", "overwrite a preset of that name").optional() },
+            [] (Context& ctx, const Args& args) {
+                juce::String error;
+                const auto ch = channelFromArgs (ctx.song(), args, error);
+                std::shared_ptr<Instrument> holder;
+                auto* plugin = ch < 0 ? nullptr : runningInstrument (ctx, ch, holder, error);
+                if (plugin == nullptr)
+                    return Result::failure (error);
+                auto& instance = plugin->getInstance();
+                const auto name = args.text ("name").trim();
+                const auto fileName = juce::File::createLegalFileName (name);
+                if (fileName.isEmpty())
+                    return Result::failure ("give the preset a --name");
+
+                // (LYNX's own preset: the plugin's whole state, which every plugin format can give and take back)
+                const auto folder = pluginpresetui::folderFor (instance.getName());
+                const auto file = folder.getChildFile (fileName + ".lynxpreset");
+                if (file.existsAsFile() && ! args.boolean ("replace"))
+                    return Result::failure ("there's already a preset named \"" + name + "\" for " + instance.getName() + " (--replace overwrites it)");
+                folder.createDirectory();
+                if (! pluginpresetui::save (instance, file, name, error))
+                    return Result::failure (error);
+                loadedPresetFiles()[&instance] = file;
+
+                const auto presets = pluginpresetui::presetsOf (instance);
+                const auto at = currentPreset (instance, presets);
+                return Result::success (makeObject ({ { "channel", summary (ctx.song(), ch) },
+                                                      { "plugin", instance.getName() },
+                                                      { "preset", at >= 0 ? presetInfo (at + 1, presets[(std::size_t) at]) : juce::var (name) },
+                                                      { "file", file.getFullPathName() } }));
+            });
+
     action ("preset.folder.add", "Add a preset library folder to a channel's plugin (its .fxp / .vstpreset files, e.g. Nexus's content \"Presets\" folder): "
                                  "listed by channel presets from then on, for every channel with that plugin",
             { Arg::text ("channel", "a channel with the plugin (its number or name)"),
@@ -720,6 +756,7 @@ void ChannelModule::define()
                 { "param.set", "channel param set --channel Lead --param Cutoff --text \"2 kHz\"" },
                 { "presets", "channel presets --channel Lead --search pad" },
                 { "preset.set", "channel preset set --channel Lead --preset next" },
+                { "preset.save", "channel preset save --channel Lead --name \"Warm Pad\"" },
                 { "preset.folder.add", "channel preset folder add --channel Nexus --path \"/Volumes/SSD/Nexus 5 Content/Presets\"" },
                 { "preset.folder.remove", "channel preset folder remove --channel Nexus --path \"/Volumes/SSD/Nexus 5 Content/Presets\"" } });
 }
