@@ -18,7 +18,13 @@ namespace lynx::pluginpresetui
 juce::File presetsRoot();                               // <settings>/Presets/Plugins
 juce::File folderFor (const juce::String& pluginName);  // that plugin's folder (not created)
 bool isPresetFile (const juce::File& file);             // .lynxpreset (of a plugin), .fxp, .fxb, .vstpreset
-juce::Array<juce::File> userPresets (const juce::String& pluginName); // sorted by name
+juce::Array<juce::File> userPresets (const juce::String& pluginName); // sorted by name: its folder, then its library folders
+
+// A plugin's preset libraries elsewhere on disk (Nexus's content folder on an external drive...): their preset files,
+// at any depth, are listed after the user's own (userPresets, presetsOf, the plugin window's menu). Kept per plugin
+// name in <settings>/plugin-preset-folders.txt ("name<TAB>path" lines). Folders that aren't there now are kept.
+juce::StringArray libraryFolders (const juce::String& pluginName);
+void setLibraryFolders (const juce::String& pluginName, const juce::StringArray& folders);
 
 // Every preset the plugin window's ◀ ▶ steps through, in its order: the plugin's own programs (when it shares more than
 // one), then the user's preset files for it (userPresets).
@@ -27,6 +33,7 @@ struct PresetEntry
     int program = -1; // a factory program, or
     juce::File file;  // a user preset
     juce::String name;
+    juce::String group; // a library preset: its folder, as "N5 Factory Presets" (empty: the user's own folder)
 };
 std::vector<PresetEntry> presetsOf (juce::AudioPluginInstance& plugin);
 

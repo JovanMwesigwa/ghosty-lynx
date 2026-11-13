@@ -14,6 +14,7 @@
 #include "ui/QuickPick.h"
 
 #include <functional>
+#include <map>
 #include <optional>
 
 #include <algorithm>
@@ -233,7 +234,18 @@ PluginInstrument* runningInstrument (Context& ctx, int index, std::shared_ptr<In
 
 juce::var presetInfo (int number, const pluginpresetui::PresetEntry& e)
 {
-    return makeObject ({ { "preset", number }, { "name", e.name }, { "source", e.program >= 0 ? "plugin" : "file" } });
+    auto info = makeObject ({ { "preset", number }, { "name", e.name }, { "source", e.program >= 0 ? "plugin" : "file" } });
+    if (e.group.isNotEmpty())
+        info.getDynamicObject()->setProperty ("library", e.group);
+    return info;
+}
+
+// The preset file each plugin was last switched to from here (a file leaves no trace in the plugin: next / previous
+// step on from it). Message thread.
+std::map<const juce::AudioPluginInstance*, juce::File>& loadedPresetFiles()
+{
+    static std::map<const juce::AudioPluginInstance*, juce::File> files;
+    return files;
 }
 
 // --preset: its number (from 1), its name (a unique part works), or next / previous (from the plugin's current program).
@@ -242,6 +254,13 @@ int findPreset (const std::vector<pluginpresetui::PresetEntry>& presets, int cur
 {
     const auto wanted = text.trim();
     const auto n = (int) presets.size();
+    if (wanted.equalsIgnoreCase ("random") && n > 0)
+    {
+        auto k = juce::Random::getSystemRandom().nextInt (n);
+        if (k == current && n > 1)
+            k = (k + 1) % n;
+        return k;
+    }
     if (wanted.equalsIgnoreCase ("next") || wanted.equalsIgnoreCase ("previous") || wanted.equalsIgnoreCase ("prev"))
     {
         const auto delta = wanted.equalsIgnoreCase ("next") ? 1 : -1;
@@ -283,6 +302,10 @@ int findPreset (const std::vector<pluginpresetui::PresetEntry>& presets, int cur
 // loaded, or the plugin keeps its presets to itself).
 int currentPreset (juce::AudioPluginInstance& plugin, const std::vector<pluginpresetui::PresetEntry>& presets)
 {
+    if (const auto f = loadedPresetFiles().find (&plugin); f != loadedPresetFiles().end())
+        for (int i = 0; i < (int) presets.size(); ++i)
+            if (presets[(std::size_t) i].file == f->second)
+                return i;
     if (plugin.getNumPrograms() <= 1)
         return -1;
     const auto program = plugin.getCurrentProgram();
@@ -557,7 +580,9 @@ void ChannelModule::define()
     // ---- a plugin instrument's presets ---------------------------------------------------------------------------
 
     query ("presets", "The presets of a channel's plugin instrument (as its window's preset menu lists them) and which one is on",
-           { Arg::text ("channel", "its number or name"), Arg::text ("search", "only presets whose name contains this").optional() },
+           { Arg::text ("channel", "its number or name"),
+             Arg::text ("search", "only presets whose name (or library folder) contains this").optional(),
+             Arg::number ("limit", "how many to list (default 50; count says how many match)", 1, 2000).optional() },
            [] (Context& ctx, const Args& args) {
                juce::String error;
                const auto ch = channelFromArgs (ctx.song(), args, error);
@@ -571,25 +596,77 @@ void ChannelModule::define()
                const auto current = currentPreset (instance, presets);
                const auto search = args.text ("search").trim();
                juce::Array<juce::var> list;
+               int matching = 0;
+               const auto limit = (int) args.number ("limit", 50);
                for (int i = 0; i < (int) presets.size(); ++i)
-                   if (search.isEmpty() || presets[(std::size_t) i].name.containsIgnoreCase (search))
-                       list.add (presetInfo (i + 1, presets[(std::size_t) i]));
+                   if (const auto& p = presets[(std::size_t) i]; search.isEmpty() || p.name.containsIgnoreCase (search) || p.group.containsIgnoreCase (search))
+                       if (++matching <= limit)
+                           list.add (presetInfo (i + 1, p));
 
                auto result = makeObject ({ { "channel", summary (ctx.song(), ch) },
                                            { "plugin", instance.getName() },
                                            { "current", current >= 0 ? presetInfo (current + 1, presets[(std::size_t) current]) : juce::var() },
-                                           { "count", list.size() },
+                                           { "count", matching },
                                            { "presets", list } });
+               if (matching > list.size())
+                   result.getDynamicObject()->setProperty ("note", juce::String (list.size()) + " of " + juce::String (matching)
+                                                                       + " listed: --search narrows them, --limit lists more");
                if (presets.empty())
                    result.getDynamicObject()->setProperty (
                        "note", instance.getName() + " doesn't share its presets with the host (pick them in its own window). Preset files (.fxp, "
                                    ".vstpreset, .lynxpreset) saved in " + pluginpresetui::folderFor (instance.getName()).getFullPathName()
-                                   + " are listed here");
+                                   + " are listed here, and a preset library folder can be added (channel preset folder add)");
                return Result::success (result);
            });
 
-    mutation ("preset.set", "Switch a channel's plugin instrument to a preset: its number or name (channel presets lists them), or next / previous",
-              { Arg::text ("channel", "its number or name"), Arg::text ("preset", "its number, its name, next or previous") },
+    action ("preset.folder.add", "Add a preset library folder to a channel's plugin (its .fxp / .vstpreset files, e.g. Nexus's content \"Presets\" folder): "
+                                 "listed by channel presets from then on, for every channel with that plugin",
+            { Arg::text ("channel", "a channel with the plugin (its number or name)"),
+              Arg::text ("path", "the folder (absolute or ~/...): its presets at any depth") },
+            [] (Context& ctx, const Args& args) {
+                juce::String error;
+                const auto ch = channelFromArgs (ctx.song(), args, error);
+                std::shared_ptr<Instrument> holder;
+                auto* plugin = ch < 0 ? nullptr : runningInstrument (ctx, ch, holder, error);
+                if (plugin == nullptr)
+                    return Result::failure (error);
+                const auto folder = pathFromArg (args.text ("path"));
+                if (folder == juce::File())
+                    return Result::failure ("--path must be an absolute path or start with ~/ (got \"" + args.text ("path") + "\")");
+                if (! folder.isDirectory())
+                    return Result::failure ("no folder at " + folder.getFullPathName() + (folder.getFullPathName().startsWith ("/Volumes/") ? " (is the drive plugged in?)" : ""));
+
+                const auto name = plugin->getInstance().getName();
+                auto folders = pluginpresetui::libraryFolders (name);
+                folders.addIfNotAlreadyThere (folder.getFullPathName());
+                pluginpresetui::setLibraryFolders (name, folders);
+                const auto found = folder.findChildFiles (juce::File::findFiles, true, "*.fxp;*.fxb;*.vstpreset;*.lynxpreset").size();
+                return Result::success (makeObject ({ { "plugin", name }, { "folder", folder.getFullPathName() }, { "presets", found },
+                                                      { "folders", folders } }));
+            });
+
+    action ("preset.folder.remove", "Stop listing a preset library folder for a channel's plugin (the files stay)",
+            { Arg::text ("channel", "a channel with the plugin (its number or name)"),
+              Arg::text ("path", "the folder, as channel preset folder add was given it") },
+            [] (Context& ctx, const Args& args) {
+                juce::String error;
+                const auto ch = channelFromArgs (ctx.song(), args, error);
+                std::shared_ptr<Instrument> holder;
+                auto* plugin = ch < 0 ? nullptr : runningInstrument (ctx, ch, holder, error);
+                if (plugin == nullptr)
+                    return Result::failure (error);
+                const auto name = plugin->getInstance().getName();
+                auto folders = pluginpresetui::libraryFolders (name);
+                const auto path = pathFromArg (args.text ("path")).getFullPathName();
+                if (! folders.contains (path))
+                    return Result::failure (name + " has no preset library folder " + path + (folders.isEmpty() ? juce::String() : " (it has: " + folders.joinIntoString (", ") + ")"));
+                folders.removeString (path);
+                pluginpresetui::setLibraryFolders (name, folders);
+                return Result::success (makeObject ({ { "plugin", name }, { "removed", path }, { "folders", folders } }));
+            });
+
+    mutation ("preset.set", "Switch a channel's plugin instrument to a preset: its number or name (channel presets lists them), or next / previous / random",
+              { Arg::text ("channel", "its number or name"), Arg::text ("preset", "its number, its name, next, previous or random") },
               [] (Context& ctx, const Args& args) {
                   juce::String error;
                   const auto ch = channelFromArgs (ctx.song(), args, error);
@@ -610,9 +687,18 @@ void ChannelModule::define()
 
                   const auto& preset = presets[(std::size_t) k];
                   if (preset.program >= 0)
+                  {
                       instance.setCurrentProgram (preset.program);
+                      loadedPresetFiles().erase (&instance);
+                  }
                   else if (! pluginpresetui::load (instance, preset.file, error))
+                  {
                       return Result::failure (error);
+                  }
+                  else
+                  {
+                      loadedPresetFiles()[&instance] = preset.file;
+                  }
                   ctx.engine.markModified();
 
                   return Result::success (makeObject ({ { "channel", summary (ctx.song(), ch) },
@@ -633,6 +719,8 @@ void ChannelModule::define()
                 { "params", "channel params --channel Lead --search cutoff" },
                 { "param.set", "channel param set --channel Lead --param Cutoff --text \"2 kHz\"" },
                 { "presets", "channel presets --channel Lead --search pad" },
-                { "preset.set", "channel preset set --channel Lead --preset next" } });
+                { "preset.set", "channel preset set --channel Lead --preset next" },
+                { "preset.folder.add", "channel preset folder add --channel Nexus --path \"/Volumes/SSD/Nexus 5 Content/Presets\"" },
+                { "preset.folder.remove", "channel preset folder remove --channel Nexus --path \"/Volumes/SSD/Nexus 5 Content/Presets\"" } });
 }
 } // namespace lynx::commands

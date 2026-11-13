@@ -11,6 +11,8 @@
 #include "ui/PluginWindow.h"
 #include "ui/Theme.h"
 
+#include <map>
+
 namespace lynx::pluginpresetui
 {
 namespace
@@ -78,6 +80,18 @@ bool loadFx (juce::AudioPluginInstance& plugin, const std::vector<std::uint8_t>&
         return false;
     }
     using K = pp::FxFile::Kind;
+    if (fx->isChunk() && ! info && fx->kind == K::chunkProgram && isVst3 (plugin))
+    {
+        // A VST3 plugin given its VST2 preset (Nexus ships its library as .fxp only): the chunk is the plugin's own
+        // data, which plugins built on one state for both formats (JUCE's wrappers: setStateInformation) read as
+        // their VST3 component state. JUCE's VST3 host takes it in its "VST3PluginState" form (IComponent, base64).
+        juce::XmlElement state ("VST3PluginState");
+        state.createNewChildElement ("IComponent")->addTextElement (juce::MemoryBlock (fx->chunk.data(), fx->chunk.size()).toBase64Encoding());
+        juce::MemoryBlock data;
+        juce::AudioProcessor::copyXmlToBinary (state, data);
+        plugin.setStateInformation (data.getData(), (int) data.getSize());
+        return true;
+    }
     if (fx->isChunk())
     {
         if (! info || ! vst2::setChunk (plugin, fx->chunk, fx->kind == K::chunkProgram))
@@ -171,12 +185,61 @@ bool isPresetFile (const juce::File& file)
     return file.hasFileExtension ("lynxpreset;fxp;fxb;vstpreset");
 }
 
+namespace
+{
+const char* presetWildcard = "*.lynxpreset;*.fxp;*.fxb;*.vstpreset";
+
+juce::File libraryFoldersFile()
+{
+    return platform::settingsFile ("plugin-preset-folders.txt");
+}
+
+// a library's preset files, at any depth, by path (not hidden ones: "._x.fxp" is the Mac's resource fork on a drive)
+juce::Array<juce::File> libraryPresets (const juce::File& folder)
+{
+    juce::Array<juce::File> files;
+    if (! folder.isDirectory())
+        return files;
+    for (const auto& f : folder.findChildFiles (juce::File::findFiles, true, presetWildcard))
+        if (! f.getFileName().startsWithChar ('.'))
+            files.add (f);
+    std::sort (files.begin(), files.end(), [] (const juce::File& a, const juce::File& b) {
+        return a.getFullPathName().compareNatural (b.getFullPathName()) < 0;
+    });
+    return files;
+}
+} // namespace
+
+juce::StringArray libraryFolders (const juce::String& pluginName)
+{
+    juce::StringArray folders;
+    for (const auto& line : juce::StringArray::fromLines (libraryFoldersFile().loadFileAsString()))
+        if (line.upToFirstOccurrenceOf ("\t", false, false).equalsIgnoreCase (pluginName))
+            if (const auto path = line.fromFirstOccurrenceOf ("\t", false, false).trim(); path.isNotEmpty())
+                folders.addIfNotAlreadyThere (path);
+    return folders;
+}
+
+void setLibraryFolders (const juce::String& pluginName, const juce::StringArray& folders)
+{
+    juce::StringArray lines;
+    for (const auto& line : juce::StringArray::fromLines (libraryFoldersFile().loadFileAsString()))
+        if (line.trim().isNotEmpty() && ! line.upToFirstOccurrenceOf ("\t", false, false).equalsIgnoreCase (pluginName))
+            lines.add (line);
+    for (const auto& f : folders)
+        lines.add (pluginName + "\t" + f);
+    libraryFoldersFile().getParentDirectory().createDirectory();
+    libraryFoldersFile().replaceWithText (lines.joinIntoString ("\n"));
+}
+
 juce::Array<juce::File> userPresets (const juce::String& pluginName)
 {
-    auto files = folderFor (pluginName).findChildFiles (juce::File::findFiles, false, "*.lynxpreset;*.fxp;*.fxb;*.vstpreset");
+    auto files = folderFor (pluginName).findChildFiles (juce::File::findFiles, false, presetWildcard);
     std::sort (files.begin(), files.end(), [] (const juce::File& a, const juce::File& b) {
         return a.getFileName().compareNatural (b.getFileName()) < 0;
     });
+    for (const auto& folder : libraryFolders (pluginName))
+        files.addArray (libraryPresets (juce::File (folder)));
     return files;
 }
 
@@ -414,8 +477,13 @@ std::vector<PresetEntry> presetsOf (juce::AudioPluginInstance& p)
             auto name = p.getProgramName (i);
             out.push_back ({ i, {}, name.isEmpty() ? tr ("Program {0}", { juce::String (i + 1) }) : name });
         }
+    const auto own = folderFor (p.getName());
     for (const auto& f : userPresets (p.getName()))
-        out.push_back ({ -1, f, f.getFileNameWithoutExtension() });
+    {
+        // (a library's: its folder's name, for the menu's submenus)
+        const auto group = f.getParentDirectory() == own ? juce::String() : f.getParentDirectory().getFileName();
+        out.push_back ({ -1, f, f.getFileNameWithoutExtension(), group });
+    }
     return out;
 }
 
@@ -489,13 +557,38 @@ void PresetBar::showMenu()
     }
     bool users = false;
     for (const auto& e : list)
-        if (e.program < 0)
+        if (e.program < 0 && e.group.isEmpty())
         {
             if (! users)
                 menu.addSectionHeader (tr ("Your presets"));
             users = true;
             menu.addItem (e.name, true, e.file == currentFile, [this, e] { apply (e); });
         }
+    // the libraries' presets (Nexus's 1,000+): a submenu per folder; a big one split by the names' first word ("AR", "TG")
+    std::map<juce::String, std::vector<Entry>> groups;
+    for (const auto& e : list)
+        if (e.program < 0 && e.group.isNotEmpty())
+            groups[e.group].push_back (e);
+    if (! groups.empty())
+        menu.addSectionHeader (tr ("Libraries"));
+    for (const auto& [group, entries] : groups)
+    {
+        juce::PopupMenu sub;
+        if (entries.size() <= 60)
+        {
+            for (const auto& e : entries)
+                sub.addItem (e.name, true, e.file == currentFile, [this, e] { apply (e); });
+        }
+        else
+        {
+            std::map<juce::String, juce::PopupMenu> byWord;
+            for (const auto& e : entries)
+                byWord[e.name.upToFirstOccurrenceOf (" ", false, false)].addItem (e.name, true, e.file == currentFile, [this, e] { apply (e); });
+            for (auto& [word, items] : byWord)
+                sub.addSubMenu (word, items);
+        }
+        menu.addSubMenu (group + " (" + juce::String ((int) entries.size()) + ")", sub);
+    }
     menu.addSeparator();
     menu.addItem (tr ("Save preset..."), [this] { saveAs(); });
     menu.addItem (tr ("Load preset file..."), [this] { loadFile(); });
