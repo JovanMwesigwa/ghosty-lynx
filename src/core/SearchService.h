@@ -79,6 +79,10 @@ public:
 
     IndexStatus status() const;
 
+    // What the index holds now under `roots` (no disk walk: instant), as Index::visitFiles. The index is locked while
+    // it runs, so keep `visit` quick. Returns true when every root is a tree indexed to the end.
+    bool visitIndexed (const std::vector<std::string>& roots, const std::function<bool (const std::string& folder, const std::string& name)>& visit) const;
+
     // Which folders hold a file `accept` takes (round 164: the Browser's content filter), worked out from the index
     // and kept per `key` until the index changes. Never waits for the worker: while it holds the index, the last
     // answer for `key` (or nullptr) is returned. Call from one thread (the message thread).

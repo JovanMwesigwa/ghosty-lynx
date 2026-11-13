@@ -84,6 +84,13 @@ IndexStatus Service::status() const
     return state;
 }
 
+bool Service::visitIndexed (const std::vector<std::string>& roots, const std::function<bool (const std::string&, const std::string&)>& visit) const
+{
+    const std::lock_guard<std::mutex> guard (indexLock);
+    index.visitFiles (roots, visit);
+    return std::all_of (roots.begin(), roots.end(), [this] (const std::string& r) { return index.isComplete (r); });
+}
+
 bool Service::waitIdle (int timeoutMs)
 {
     std::unique_lock<std::mutex> guard (lock);

@@ -79,6 +79,9 @@ public:
 
     // Files whose name matches `query` under the given roots (full paths), in folder order, at most `max`.
     std::vector<std::string> find (const std::string& query, const std::vector<std::string>& roots, std::size_t max, bool& truncated) const;
+    // Every indexed file under the given roots, as visit (folder's full path, file name), in folder order; stops when
+    // visit returns false (Ghosty's sample commands match folder names too, which find() doesn't).
+    void visitFiles (const std::vector<std::string>& roots, const std::function<bool (const std::string& folder, const std::string& name)>& visit) const;
 
     std::size_t folderCount() const noexcept { return folders.size(); }
     std::size_t fileCount() const noexcept;

@@ -404,6 +404,61 @@ void ChannelModule::define()
                   return Result::success (result);
               });
 
+    mutation ("sample", "Swap the sample a channel plays (as dropping a file on its row): its notes, levels, insert and name stay; "
+                        "a channel that isn't a Sampler becomes one",
+              { Arg::text ("channel", "its name or number (channel list)"),
+                Arg::text ("sample", "the new sample: a path from sample search (absolute or ~/...)"),
+                Arg::boolean ("rename", "name the channel after the sample (default: it keeps its name)").optional() },
+              [] (Context& ctx, const Args& args) {
+                  const auto& song = ctx.song();
+                  juce::String error;
+                  const auto index = channelFromArgs (song, args, error);
+                  if (index < 0)
+                      return Result::failure (error);
+
+                  // checked and loaded the way the rack's "choose file" does (core/SampleFiles: wav, aif, flac, ogg, mp3, wv)
+                  const auto file = pathFromArg (args.text ("sample"));
+                  if (file == juce::File())
+                      return Result::failure ("--sample must be an absolute path or start with ~/ (got \"" + args.text ("sample") + "\")");
+                  if (! file.existsAsFile())
+                      return Result::failure ("no file at " + file.getFullPathName() + " (sample search finds samples)");
+                  if (! SampleLibrary::isSampleFile (file) || file.hasFileExtension ("speech")
+                      || ctx.engine.getSampleLibrary().load (file.getFullPathName()) == nullptr)
+                      return Result::failure ("couldn't read " + file.getFileName() + " as audio (WAV, AIFF, FLAC, OGG, MP3...)");
+
+                  const auto& before = song.channels[(std::size_t) index];
+                  const auto previousSample = before.samplePath.empty() ? juce::var() : juce::var (juce::String::fromUTF8 (before.samplePath.c_str()));
+                  const auto previousInstrument = instrumentOf (before);
+
+                  // its name: kept (commands find channels by name), or the sample's, made free like a new channel's
+                  auto name = before.name;
+                  if (args.boolean ("rename"))
+                  {
+                      const auto wanted = file.getFileNameWithoutExtension();
+                      name = juce::String::fromUTF8 (before.name.c_str()).equalsIgnoreCase (wanted)
+                                 ? before.name
+                                 : quickrender::uniqueChannelName (song, wanted.toStdString());
+                  }
+
+                  // (ChannelRackComponent::assignSampleNow: FL's Granulizer and Wave Traveller keep their engine and
+                  // play the file; anything else becomes a Sampler)
+                  const auto path = file.getFullPathName().toStdString();
+                  ctx.edit ([index, path, name] (Song& s) {
+                      auto& c = s.channels[(std::size_t) index];
+                      c.samplePath = path;
+                      c.name = name;
+                      if (c.instrument != InstrumentKind::granulizer && c.instrument != InstrumentKind::wavetraveller)
+                          c.instrument = InstrumentKind::sampler;
+                  });
+
+                  auto result = details (ctx.song(), index);
+                  auto* o = result.getDynamicObject();
+                  o->setProperty ("previousSample", previousSample);
+                  if (const auto now = instrumentOf (ctx.song().channels[(std::size_t) index]); now != previousInstrument)
+                      o->setProperty ("previousInstrument", previousInstrument);
+                  return Result::success (result);
+              });
+
     mutation ("delete", "Remove a channel with its notes and audio clips (the channels below move up one)",
               { Arg::text ("channel", "its name or number (channel list)") },
               [] (Context& ctx, const Args& args) {
@@ -573,6 +628,7 @@ void ChannelModule::define()
                 { "instruments", "channel instruments --search synth" },
                 { "add", "channel add --instrument Patcher --name \"FX Rack\"" },
                 { "replace", "channel replace --channel Synth --instrument \"LYNX Soundfont\"" },
+                { "sample", "channel sample --channel Kick --sample \"~/Music/Samples/Kick 02.wav\"" },
                 { "delete", "channel delete --channel \"Open Hat\"" },
                 { "params", "channel params --channel Lead --search cutoff" },
                 { "param.set", "channel param set --channel Lead --param Cutoff --text \"2 kHz\"" },

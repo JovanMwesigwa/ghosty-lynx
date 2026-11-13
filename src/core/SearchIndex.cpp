@@ -212,6 +212,18 @@ int Index::refresh (const std::string& root, const FileSystem& fs, const std::fu
     return listed;
 }
 
+void Index::visitFiles (const std::vector<std::string>& roots, const std::function<bool (const std::string&, const std::string&)>& visit) const
+{
+    for (const auto& [path, folder] : folders)
+    {
+        if (std::none_of (roots.begin(), roots.end(), [&path] (const std::string& r) { return isUnder (path, r); }))
+            continue;
+        for (const auto& name : folder.files)
+            if (! visit (path, name))
+                return;
+    }
+}
+
 std::vector<std::string> Index::find (const std::string& query, const std::vector<std::string>& roots, std::size_t max, bool& truncated) const
 {
     truncated = false;

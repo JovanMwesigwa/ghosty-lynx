@@ -28,7 +28,8 @@ CommandRegistry/
 ├── shared/Catalog              pick-by-name lists (channel instruments, mixer effects): --format, VST3 first, ids
 ├── tempo/TempoModule           tempo.get, tempo.set
 ├── project/ProjectModule       project.get, project.templates, project.new
-├── channel/ChannelModule       channel.list, channel.get, channel.add, channel.delete
+├── channel/ChannelModule       channel.list, channel.get, channel.add, channel.replace, channel.sample, channel.delete, ...
+├── sample/SampleModule         sample.folders, sample.search, sample.preview (the samples in the Browser's folders)
 ├── pattern/PatternModule       pattern.list, pattern.new, pattern.notes, pattern.note.add, pattern.steps
 ├── mixer/MixerModule           mixer.tracks, mixer.track, mixer.track.set, mixer.link, mixer.route, mixer.unroute,
 │                               mixer.effects, mixer.effect.add, mixer.effect.remove, mixer.effect.set,

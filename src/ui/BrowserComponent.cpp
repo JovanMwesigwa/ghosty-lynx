@@ -2947,15 +2947,9 @@ std::unique_ptr<juce::Component> BrowserComponent::makeSampleBrowserContent (Aud
     return host;
 }
 
-void BrowserComponent::rebuildRoots()
+std::vector<BrowserComponent::Root> BrowserComponent::knownRoots()
 {
-    roots.clear();
-    rootNames.clear();
-    allRoots.clear();
-    allRootNames.clear();
-    allRootKinds.clear();
     using browserview::RootKind;
-
     // FL folders (if installed) and user folders
     const auto programs = juce::File::getSpecialLocation (juce::File::globalApplicationsDirectory);
     juce::File fl;
@@ -2964,13 +2958,10 @@ void BrowserComponent::rebuildRoots()
         if (dir.getChildFile ("Data").isDirectory() && dir.getFileName() > fl.getFileName()) // "FL Studio ASIO" is the driver
             fl = dir;
 
-    auto add = [this] (const juce::String& name, const juce::File& folder, RootKind kind) {
-        if (folder.isDirectory() && ! allRoots.contains (folder))
-        {
-            allRoots.add (folder);
-            allRootNames.add (name);
-            allRootKinds.push_back (kind);
-        }
+    std::vector<Root> roots;
+    auto add = [&roots] (const juce::String& name, const juce::File& folder, RootKind kind) {
+        if (folder.isDirectory() && std::none_of (roots.begin(), roots.end(), [&folder] (const Root& r) { return r.folder == folder; }))
+            roots.push_back ({ name, folder, kind });
     };
 
     const auto data = fl.getChildFile ("Data");
@@ -2996,6 +2987,40 @@ void BrowserComponent::rebuildRoots()
     for (const auto& line : juce::StringArray::fromLines (userFoldersFile().loadFileAsString()))
         if (line.trim().isNotEmpty())
             add (juce::File (line.trim()).getFileName(), juce::File (line.trim()), RootKind::user);
+    return roots;
+}
+
+bool BrowserComponent::visitIndexedFiles (const juce::Array<juce::File>& folders,
+                                          const std::function<bool (const juce::String& folder, const juce::String& name)>& visit, bool& indexing)
+{
+    // (kept alive while the Browser panel exists, which is always; held here for the call either way)
+    const auto shared = SearchShared::get();
+    std::vector<std::string> roots;
+    for (const auto& f : folders)
+        roots.push_back (f.getFullPathName().toStdString());
+    const auto complete = shared->service->visitIndexed (roots, [&visit] (const std::string& folder, const std::string& name) {
+        return visit (juce::String::fromUTF8 (folder.c_str()), juce::String::fromUTF8 (name.c_str()));
+    });
+    if (! complete)
+        shared->service->refresh (roots); // (index what's missing in the background: the next call finds more)
+    indexing = ! complete || shared->service->status().busy;
+    return complete;
+}
+
+void BrowserComponent::rebuildRoots()
+{
+    roots.clear();
+    rootNames.clear();
+    allRoots.clear();
+    allRootNames.clear();
+    allRootKinds.clear();
+
+    for (const auto& r : knownRoots())
+    {
+        allRoots.add (r.folder);
+        allRootNames.add (r.name);
+        allRootKinds.push_back (r.kind);
+    }
 
     if (! viewLoaded)
         loadView();

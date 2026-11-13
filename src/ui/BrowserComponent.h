@@ -123,6 +123,22 @@ public:
     void focusSearch();
     void addUserFolder(); // asks for a folder and adds it to the folder list
     void reloadUserFolders() { rebuildRoots(); } // after the list changed elsewhere (Settings > Files)
+
+    // The top-level folders a Browser can show (FL's folders when FL Studio is installed, LYNX's presets, Documents,
+    // Music, Desktop, Downloads, the folders the user added), whether shown or hidden. The command bridge's sample
+    // commands search the same folders.
+    struct Root
+    {
+        juce::String name;   // as the Browser shows it ("FL samples (Packs)", "Downloads")
+        juce::File folder;
+        browserview::RootKind kind;
+    };
+    static std::vector<Root> knownRoots();
+    // The files the shared search index holds under `folders` (no disk walk), as visit (folder, file name); stops when
+    // visit returns false. Folders not indexed to the end start indexing in the background (`indexing` is then true:
+    // a later call finds more). Returns whether every folder was fully indexed. Message thread.
+    static bool visitIndexedFiles (const juce::Array<juce::File>& folders,
+                                   const std::function<bool (const juce::String& folder, const juce::String& name)>& visit, bool& indexing);
     void setSearchForSnapshot (const juce::String& text);
     // For snapshots: selects (and "previews" without sound) the first audio file under the first folder,
     // and puts the mouse over the row after it.

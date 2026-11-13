@@ -5,6 +5,7 @@
 #include "CommandRegistry/pattern/PatternModule.h"
 #include "CommandRegistry/playlist/PlaylistModule.h"
 #include "CommandRegistry/project/ProjectModule.h"
+#include "CommandRegistry/sample/SampleModule.h"
 #include "CommandRegistry/settings/SettingsModule.h"
 #include "CommandRegistry/account/AccountModule.h"
 #include "CommandRegistry/tempo/TempoModule.h"
@@ -34,6 +35,7 @@ CommandBridge::CommandBridge (AudioEngine& engine, std::function<MainComponent*(
     modules.push_back (std::make_unique<PatternModule>());
     modules.push_back (std::make_unique<PlaylistModule>());
     modules.push_back (std::make_unique<ProjectModule>());
+    modules.push_back (std::make_unique<SampleModule>());
     modules.push_back (std::make_unique<SettingsModule>());
     modules.push_back (std::make_unique<TempoModule>());
     modules.push_back (std::make_unique<TransportModule>());

@@ -16,6 +16,9 @@
 //   channel.replace --channel Lead --instrument "LYNX Soundfont" [--name ...]
 //                                        the rack's Replace ›: another instrument on the channel; its notes, insert,
 //                                        levels and (unlike the menu, so commands keep finding it) its name stay
+//   channel.sample --channel Kick --sample ~/Music/Samples/Kick 02.wav [--rename]
+//                                        swaps the sample it plays (as dropping a file on its row: sample search finds
+//                                        them); notes, levels, insert and name stay; not a Sampler yet: it becomes one
 //   channel.delete --channel "Open Hat"  removes it with its notes and audio clips (the rack keeps at least one);
 //                                        the channels below it move up one number
 //   channel.params --channel Lead [--search cutoff]

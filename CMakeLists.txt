@@ -465,6 +465,7 @@ if(LYNX_BUILD_APP)
         src/CommandRegistry/pattern/PatternModule.cpp
         src/CommandRegistry/playlist/PlaylistModule.cpp
         src/CommandRegistry/project/ProjectModule.cpp
+        src/CommandRegistry/sample/SampleModule.cpp
         src/CommandRegistry/settings/SettingsModule.cpp
         src/CommandRegistry/account/AccountModule.cpp
         src/CommandRegistry/tempo/TempoModule.cpp
