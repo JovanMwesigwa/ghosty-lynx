@@ -8,6 +8,10 @@
 //   sample.search --kind kick               → kicks: name, path, kind, folder; --query "punchy", --folder, --random
 //   sample.search --query "808 OR sub"      → the Browser's search words (AND, OR, -not, "phrase", wild*cards),
 //                                             matched against the folders' names too (Drums/Kicks/Big.wav is a kick)
+//   sample.folder.add --path "/Volumes/SSD/Samples"
+//                                           → searched every time from now on (and listed in the Browser: the same list
+//                                             as its + button and Settings > Files); added folders are searched first
+//   sample.folder.remove --folder Samples   → not searched any more (the files stay)
 //   sample.preview --path ~/Music/kick.wav  → plays it in the Browser's preview (no --path: stops)
 //
 // Searches read the Browser's search index (instant). A folder not indexed yet is indexed in the background: the reply

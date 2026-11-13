@@ -134,6 +134,10 @@ public:
         browserview::RootKind kind;
     };
     static std::vector<Root> knownRoots();
+    // The folders the user added (the + button, Settings > Files; one path per line in browser-folders.txt), and
+    // replacing them: saved at once, and every open Browser lists its folders again. Message thread.
+    static juce::StringArray userFolders();
+    static void setUserFolders (const juce::StringArray& folders);
     // The files the shared search index holds under `folders` (no disk walk), as visit (folder, file name); stops when
     // visit returns false. Folders not indexed to the end start indexing in the background (`indexing` is then true:
     // a later call finds more). Returns whether every folder was fully indexed. Message thread.

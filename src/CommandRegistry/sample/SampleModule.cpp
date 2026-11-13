@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <random>
+#include <string_view>
 
 namespace lynx::commands
 {
@@ -66,8 +67,8 @@ const std::vector<KindRule>& kindRules()
 {
     static const std::vector<KindRule> rules {
         { "snare", { "snare" }, { "sd", "snr", "sn" } },
-        { "clap", { "clap" }, { "clp" } },
-        { "openhat", { "openhat", "open hat", "open-hat", "open_hat" }, { "oh", "ohh", "ohat" } },
+        { "clap", { "clap", "snap" }, { "clp" } },
+        { "openhat", { "openhat", "open hat", "open-hat", "open_hat" }, { "ohh", "ohat" } }, // (not "oh": vocal shouts)
         { "hat", { "hihat", "hi-hat", "hi hat", "hi_hat", "closedhat", "closed hat" }, { "hat", "hats", "hh", "chh" } },
         { "cymbal", { "cymbal" }, { "crash", "crashes", "ride", "rides", "cym", "splash", "china" } },
         { "tom", { "tomtom", "floortom" }, { "tom", "toms" } },
@@ -127,12 +128,14 @@ const char* kindOfText (const std::string& lower)
     const auto words = wordsOf (lower);
     for (const auto& rule : kindRules())
     {
-        for (const auto& a : rule.anywhere)
-            if (lower.find (a) != std::string::npos)
-                return rule.kind;
-        for (const auto& w : rule.words)
-            if (std::find (words.begin(), words.end(), w) != words.end())
-                return rule.kind;
+        const auto hit = std::any_of (rule.anywhere.begin(), rule.anywhere.end(), [&lower] (const std::string& a) { return lower.find (a) != std::string::npos; })
+                      || std::any_of (rule.words.begin(), rule.words.end(), [&words] (const std::string& w) { return std::find (words.begin(), words.end(), w) != words.end(); });
+        if (! hit)
+            continue;
+        // ("Hihats - Open", "Open Hihat 3": a hat that's open)
+        if (std::string_view (rule.kind) == "hat" && std::find (words.begin(), words.end(), "open") != words.end())
+            return "openhat";
+        return rule.kind;
     }
     return nullptr;
 }
@@ -148,12 +151,23 @@ const char* kindOf (const juce::String& stem, const juce::StringArray& folders)
     return nullptr;
 }
 
-bool isLoop (const juce::String& lowerRelativePath)
+// A loop, from its name and its two nearest folders ("Guitar Loops 125BPM/..."; not a pack's title further up, like
+// "Sounds of KSHMR Vol. 2 (Samples & Loops)", which holds one-shots too)
+bool isLoop (const juce::String& stem, const juce::StringArray& folders)
 {
-    if (lowerRelativePath.contains ("loop"))
+    const auto says = [] (const juce::String& text) {
+        const auto lower = text.toLowerCase();
+        if (lower.contains ("sample") && lower.contains ("loop"))
+            return false; // (a pack's "Samples & Loops")
+        const auto words = wordsOf (lower.toStdString());
+        return lower.contains ("loop") || std::find (words.begin(), words.end(), "bpm") != words.end();
+    };
+    if (says (stem))
         return true;
-    const auto words = wordsOf (lowerRelativePath.toStdString());
-    return std::find (words.begin(), words.end(), "bpm") != words.end();
+    for (int i = folders.size(); --i >= juce::jmax (0, folders.size() - 2);)
+        if (says (folders[i]))
+            return true;
+    return false;
 }
 
 // --kind as typed → a kind name ("kicks", "Hi-hats", "bass" → kick, hat, 808); "" when it isn't one
@@ -230,7 +244,8 @@ bool isPlayableSample (const juce::String& fileName)
 {
     const auto extension = fileName.fromLastOccurrenceOf (".", false, false);
     // (.speech files are speech synthesizer scripts: not a drum sound to swap in)
-    return fileName.containsChar ('.') && ! extension.equalsIgnoreCase ("speech") && isSampleExtension (extension.toStdString());
+    // (not hidden files: "._Kick.wav" is the Mac's resource fork on an external drive, not audio)
+    return ! fileName.startsWithChar ('.') && fileName.containsChar ('.') && ! extension.equalsIgnoreCase ("speech") && isSampleExtension (extension.toStdString());
 }
 } // namespace
 
@@ -257,6 +272,14 @@ void SampleModule::define()
                                            { "source", folders[i].source },
                                            { "path", folders[i].path },
                                            { "samples", counts[i] } }));
+               // added folders that aren't there now (an external drive that isn't plugged in): searched once it is
+               for (const auto& path : BrowserComponent::userFolders())
+                   if (! juce::File (path).isDirectory())
+                       list.add (makeObject ({ { "name", juce::File (path).getFileName() },
+                                               { "source", "user" },
+                                               { "path", path },
+                                               { "samples", 0 },
+                                               { "connected", false } }));
                auto result = makeObject ({ { "folders", list } });
                if (indexing)
                    result.getDynamicObject()->setProperty ("indexing", "some folders are still being indexed: counts grow in a moment");
@@ -324,8 +347,9 @@ void SampleModule::define()
                    f.folder = root;
                    f.stem = name.upToLastOccurrenceOf (".", false, false);
                    f.pack = pack;
-                   f.loop = isLoop (relative);
-                   f.kind = kindOf (f.stem, juce::StringArray::fromTokens (pack, "/\\", {}));
+                   const auto packFolders = juce::StringArray::fromTokens (pack, "/\\", {});
+                   f.loop = isLoop (f.stem, packFolders);
+                   f.kind = kindOf (f.stem, packFolders);
                    if (kind == "loop" ? ! f.loop : kind.isNotEmpty() && (f.loop || f.kind == nullptr || kind != f.kind))
                        return true;
                    f.path = juce::File (folder).getChildFile (name).getFullPathName();
@@ -367,6 +391,63 @@ void SampleModule::define()
                return Result::success (result);
            });
 
+    action ("folder.add", "Add a folder to search for samples every time (your sample library, an external drive): the Browser lists it too",
+            { Arg::text ("path", "the folder (absolute or ~/...): \"/Volumes/SSD/Samples\"") },
+            [] (Context&, const Args& args) {
+                const auto folder = pathFromArg (args.text ("path"));
+                if (folder == juce::File())
+                    return Result::failure ("--path must be an absolute path or start with ~/ (got \"" + args.text ("path") + "\")");
+                if (! folder.isDirectory())
+                    return Result::failure ("no folder at " + folder.getFullPathName() + (folder.getFullPathName().startsWith ("/Volumes/") ? " (is the drive plugged in?)" : ""));
+
+                auto added = BrowserComponent::userFolders();
+                const auto path = folder.getFullPathName();
+                const auto already = added.contains (path);
+                if (! already)
+                {
+                    added.add (path);
+                    BrowserComponent::setUserFolders (added); // (saved, and the Browser shows it)
+                }
+
+                // start indexing it now (in the background), and say how much is already known
+                int samples = 0;
+                bool indexing = false;
+                BrowserComponent::visitIndexedFiles ({ folder }, [&samples] (const juce::String&, const juce::String& name) {
+                    samples += isPlayableSample (name) ? 1 : 0;
+                    return true;
+                }, indexing);
+                auto result = makeObject ({ { "name", folder.getFileName() }, { "path", path }, { "samples", samples } });
+                auto* o = result.getDynamicObject();
+                if (already)
+                    o->setProperty ("note", "it was already added");
+                if (indexing)
+                    o->setProperty ("indexing", "its samples are being indexed: sample folders shows the count growing, sample search finds them as they come in");
+                return Result::success (result);
+            });
+
+    action ("folder.remove", "Stop searching a folder you added (sample folder.add, the Browser's + button); its files stay where they are",
+            { Arg::text ("folder", "its name or path, from sample folders") },
+            [] (Context&, const Args& args) {
+                const auto wanted = args.text ("folder").trim();
+                const auto asPath = pathFromArg (wanted).getFullPathName();
+                auto added = BrowserComponent::userFolders();
+                int index = -1;
+                for (int i = 0; i < added.size() && index < 0; ++i)
+                    if (added[i] == asPath || juce::File (added[i]).getFileName().equalsIgnoreCase (wanted))
+                        index = i;
+                if (index < 0)
+                {
+                    for (const auto& f : sampleFolders())
+                        if (f.name.equalsIgnoreCase (wanted) || f.path == asPath)
+                            return Result::failure (f.name + " is one of LYNX's own places, not an added folder (the Browser's view menu can hide it)");
+                    return Result::failure ("no added folder named \"" + wanted + "\" (sample folders lists them)");
+                }
+                const auto removed = added[index];
+                added.remove (index);
+                BrowserComponent::setUserFolders (added);
+                return Result::success (makeObject ({ { "removed", removed } }));
+            });
+
     action ("preview", "Play a sample in the Browser's preview, to hear it before using it (no --path: stop the preview)",
             { Arg::text ("path", "the sample's path (absolute or ~/...), from sample search").optional() },
             [] (Context& ctx, const Args& args) {
@@ -388,6 +469,8 @@ void SampleModule::define()
 
     examples ({ { "folders", "sample folders" },
                 { "search", "sample search --kind kick --random" },
+                { "folder.add", "sample folder add --path \"/Volumes/SSD/Samples\"" },
+                { "folder.remove", "sample folder remove --folder Samples" },
                 { "preview", "sample preview --path \"~/Music/Samples/Kick 01.wav\"" } });
 }
 } // namespace lynx::commands

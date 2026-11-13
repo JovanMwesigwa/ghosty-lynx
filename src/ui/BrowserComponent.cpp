@@ -2355,9 +2355,34 @@ private:
     std::vector<std::pair<juce::String, juce::String>> rows;
 };
 
+namespace
+{
+juce::Array<BrowserComponent*>& openBrowsers() // (message thread: every Browser while it exists)
+{
+    static juce::Array<BrowserComponent*> list;
+    return list;
+}
+} // namespace
+
+juce::StringArray BrowserComponent::userFolders()
+{
+    auto lines = juce::StringArray::fromLines (userFoldersFile().loadFileAsString());
+    lines.trim();
+    lines.removeEmptyStrings();
+    return lines;
+}
+
+void BrowserComponent::setUserFolders (const juce::StringArray& folders)
+{
+    userFoldersFile().replaceWithText (folders.joinIntoString ("\n"));
+    for (auto* b : openBrowsers())
+        b->rebuildRoots();
+}
+
 BrowserComponent::BrowserComponent (AudioEngine& e, Role r)
     : engine (e), role (r)
 {
+    openBrowsers().add (this);
     tabs = std::make_unique<TabBar> (*this);
     addAndMakeVisible (*tabs);
 
@@ -3163,6 +3188,7 @@ void BrowserComponent::removeUserFolder (const juce::File& folder)
 
 BrowserComponent::~BrowserComponent()
 {
+    openBrowsers().removeFirstMatchingValue (this);
     engine.removeChangeListener (this);
     searcher->statusChanged.removeChangeListener (this);
     searcher->indexChanged.removeChangeListener (this);
